@@ -11,8 +11,8 @@ cv2.namedWindow("Original", cv2.WINDOW_NORMAL)
 cv2.resizeWindow("Original", 640, 480)
 
 # load the camera intrinsic matrix and distortion coefficients
-intrinsics = np.loadtxt('/home/inspiration/RX24-perception/camera/img/camera_intrinsic_matrix.txt')
-dist = np.loadtxt('/home/inspiration/RX24-perception/camera/img/camera_distortion_matrix.txt')
+intrinsics = np.loadtxt('img/camera_intrinsic_matrix.txt')
+dist = np.loadtxt('img/camera_distortion_matrix.txt')
 
 # optimal camera matrix
 new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(intrinsics, dist, (1920, 1080), 1, (1920, 1080))
