@@ -26,8 +26,17 @@ while True:
     if not ret:
         print("Error: failed to capture image")
         break
+    
+    # undistorted_img = cv2.remap(frame, mapx, mapy, cv2.INTER_LINEAR)
+    #--- CUDA TESTING ---
 
-    undistorted_img = cv2.remap(frame, mapx, mapy, cv2.INTER_LINEAR)
+    cuMapX = cv2.cuda.GpuMat(mapx)
+    cuMapY = cv2.cuda.GpuMat(mapy)
+    cuFrame = cv2.cuda.GpuMat(frame)
+    undistorted_img = cv2.cuda.remap(cuFrame, cuMapX, cuMapY, cv2.INTER_LINEAR)
+    undistorted_img = undistorted_img.download()
+
+    # -----
 
     x, y, w, h = roi
     undistorted_img = undistorted_img[y:y+h, x:x+w]

@@ -18,15 +18,19 @@ class Undistort:
         self.new_camera_matrix, self.roi = cv2.getOptimalNewCameraMatrix(intrinsics, distortion, (width, height), 1, (width, height))
         self.mapx, self.mapy = cv2.initUndistortRectifyMap(intrinsics, distortion, None, self.new_camera_matrix, (width, height), 5)
 
-    def undistort(self, frame, crop = True):
-        if crop:
-            return self.undistort_and_crop(frame)
+    def undistort_only(self, frame, *, cuda = False):
+        if cuda:
+            cuMapX = cv2.cuda.GpuMat(self.mapx)
+            cuMapY = cv2.cuda.GpuMat(self.mapy)
+            cuFrame = cv2.cuda.GpuMat(frame)
+            undistorted_img = cv2.cuda.remap(cuFrame, cuMapX, cuMapY, cv2.INTER_LINEAR)
+            return undistorted_img.download()
         return cv2.remap(frame, self.mapx, self.mapy, cv2.INTER_LINEAR)
 
     def undistort_roi(self, frame):
         x, y, w, h = self.roi
         return frame[y:y+h, x:x+w]
 
-    def undistort_and_crop(self, frame):
-        undistorted_img = self.undistort(frame, False)
+    def undistort(self, frame, *, with_cuda = False):
+        undistorted_img = self.undistort_only(frame, cuda = with_cuda)
         return self.undistort_roi(undistorted_img)
