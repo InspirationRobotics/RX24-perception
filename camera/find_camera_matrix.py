@@ -4,7 +4,7 @@ import cv2
 from pathlib import Path
 
 CURRENT_FILE_PATH = Path(__file__).parent.absolute()
-IMG_FILE_PATH = CURRENT_FILE_PATH / "img"
+IMG_FILE_PATH = CURRENT_FILE_PATH / "calib_img"
 
 """
 Creates the camera projection model based on camera instrinics
