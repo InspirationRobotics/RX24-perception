@@ -26,6 +26,7 @@ class Camera:
         self.fps = fps
         self.load_calibration(camera_type)
         self.stream = False
+        self.done_init = False
         self.frame = None
         self.lock = Lock()
         
@@ -43,6 +44,7 @@ class Camera:
 
     def stop_stream(self):
         self.stream = False
+        self.done_init = False
         self.camera_thread.join()
         print("Camera stream stopped")
 
@@ -62,9 +64,10 @@ class Camera:
         return warmup_frame
 
     def get_latest_frame(self, *, undistort = False, with_cuda = False) -> Image:
-        with self.lock:
-            frame = self.frame
-        if frame is None:
+        if not self.done_init:
+            return None
+        ret, frame = self.cap.retrieve()
+        if not ret:
             return None
         if undistort:
             return Image(self.undistort.undistort(frame, with_cuda = with_cuda))
@@ -83,16 +86,14 @@ class Camera:
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
         else:
             self.cap = cv2.VideoCapture(self.video_path)
-
+        self.done_init = True
         while self.stream:
-            ret, frame = self.cap.read()
+            ret = self.cap.grab()
             if not ret:
                 print("Error: failed to capture image")
                 self.stream = False
                 break
-            with self.lock:
-                self.frame = frame
-            time.sleep(1/(self.fps + 5))
+            time.sleep(1/(self.fps))
 
         self.cap.release()
         return
