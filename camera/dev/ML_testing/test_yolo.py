@@ -25,7 +25,7 @@ while True:
         cv2.rectangle(frame, (x, y), (x2, y2), (0, 0, 225), 2)
         cv2.putText(frame, result.names[cls], (x, y - 5), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 225), 2)
 
-    cv2.imshow("Img", frame)
+    cv2.imshow("Camera", frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 

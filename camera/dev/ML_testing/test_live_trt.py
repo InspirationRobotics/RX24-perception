@@ -17,6 +17,13 @@ trt_model = YOLO("yolov8n.engine", task="detect", verbose=False)
 # Load the undistortion
 undistort = Undistort("/home/inspiration/RX24-perception/camera/dev/calibration/calib_img/camera_intrinsic_matrix.txt", "/home/inspiration/RX24-perception/camera/dev/calibration/calib_img/camera_distortion_matrix.txt", 1920, 1080)
 
+# Run inference on a single sample frame to warm up the model
+# warmup_frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
+warmup_frame = cv2.imread("sample.jpg")
+warmup_frame = undistort.undistort(warmup_frame, with_cuda=True)
+trt_model(warmup_frame)
+print("Finished warmup...")
+
 # Load the camera
 cap = cv2.VideoCapture("v4l2src device=/dev/video0 ! image/jpeg, width=1920, height=1080,framerate=30/1 ! jpegdec ! videoconvert ! video/x-raw, format=BGR ! appsink ")
 
@@ -38,8 +45,12 @@ while True:
     frame = undistort.undistort(frame, with_cuda=True)
 
     # Run inference
+    pre_time = time.time()
     results: list[Results] = trt_model(frame)
+    post_time = time.time() - pre_time
+    print(f"Inference Time taken: {post_time:.4f}")
 
+    pre_time = time.time()
     # Draw the bounding boxes
     for result in results:
         names = result.names
@@ -51,6 +62,8 @@ while True:
             cls_id = box.cls.item()
             cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
             cv2.putText(frame, f"{names[cls_id]}: {conf:.2f}", (int(x1), int(y1)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    post_time = time.time() - pre_time
+    print(f"Draw Time taken: {post_time :.4f}")
 
     # Write FPS on the top left corner
     new_frame_time = time.time()
@@ -71,3 +84,4 @@ cap.release()
 cv2.destroyAllWindows()
 
 # Note: Run this: export LD_PRELOAD=/lib/aarch64-linux-gnu/libstdc++.so.6:$LD_PRELOAD
+# 2.5 second delay with or without undistort

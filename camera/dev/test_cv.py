@@ -4,6 +4,9 @@ cap = cv2.VideoCapture("v4l2src device=/dev/video0 ! image/jpeg, width=1920, hei
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
 
+cv2.namedWindow("Camera", cv2.WINDOW_NORMAL) 
+cv2.resizeWindow("Camera", 1280, 720)
+
 while True:
     ret, frame = cap.read()
     if not ret:
