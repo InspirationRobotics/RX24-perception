@@ -1,9 +1,10 @@
 import cv2
 import numpy as np
 from pathlib import Path
+from typing import Tuple
 
 class Undistort:
-    def __init__(self, intrinsics : Path | str | np.ndarray, distortion : Path | str | np.ndarray, width : int, height : int):
+    def __init__(self, intrinsics : Path | str | np.ndarray, distortion : Path | str | np.ndarray, size : Tuple[int, int] = (1920, 1080)):
     
         if isinstance(intrinsics, (Path, str)):
             intrinsics = np.loadtxt(intrinsics)
@@ -12,11 +13,10 @@ class Undistort:
 
         self.intrinsics = intrinsics
         self.dist = distortion
-        self.width = width
-        self.height = height
+        self.size = size
 
-        self.new_camera_matrix, self.roi = cv2.getOptimalNewCameraMatrix(intrinsics, distortion, (width, height), 1, (width, height))
-        self.mapx, self.mapy = cv2.initUndistortRectifyMap(intrinsics, distortion, None, self.new_camera_matrix, (width, height), 5)
+        self.new_camera_matrix, self.roi = cv2.getOptimalNewCameraMatrix(intrinsics, distortion, size, 1, size)
+        self.mapx, self.mapy = cv2.initUndistortRectifyMap(intrinsics, distortion, None, self.new_camera_matrix, size, 5)
 
     def undistort_only(self, frame, *, cuda = False):
         if cuda:
@@ -27,10 +27,14 @@ class Undistort:
             return undistorted_img.download()
         return cv2.remap(frame, self.mapx, self.mapy, cv2.INTER_LINEAR)
 
-    def undistort_roi(self, frame):
+    def crop_roi(self, frame):
         x, y, w, h = self.roi
         return frame[y:y+h, x:x+w]
+    
+    def get_roi_dimensions(self):
+        x, y, w, h = self.roi
+        return ((x+w)-x, (y+h)-y)
 
     def undistort(self, frame, *, with_cuda = False):
         undistorted_img = self.undistort_only(frame, cuda = with_cuda)
-        return self.undistort_roi(undistorted_img)
+        return self.crop_roi(undistorted_img)
