@@ -12,7 +12,7 @@ import time
 from camera_core import Camera, Image
 
 # Create a camera object
-camera = Camera(video_path="countdown.mp4", fps=30)
+camera = Camera()
 
 # Load the exported TensorRT model
 trt_model = YOLO("yolov8n.engine", task="detect", verbose=False)
@@ -34,6 +34,11 @@ new_frame_time = 0
 true_start = time.time()
 # Run inference
 while camera.stream:
+
+    # Calculate FPS
+    prev_frame_time = time.time()
+    
+    # Get the latest frame
     frame : Image = camera.get_latest_frame(undistort=True, with_cuda=True)
     if frame is None:
         continue
@@ -62,13 +67,13 @@ while camera.stream:
     # Write FPS on the top left corner
     new_frame_time = time.time()
     fps = 1 / (new_frame_time - prev_frame_time)
-    prev_frame_time = new_frame_time
     cv2.putText(frame, f"FPS: {fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
+    # Display the frame
     cv2.imshow("Yolo", frame)
     
+    # Exit if 'q' is pressed
     k = cv2.waitKey(1) & 0xFF
-
     if k == ord('q'):
         print("Exiting...")
         camera.stop_stream()
@@ -78,4 +83,5 @@ print(f"Total time taken: {time.time() - true_start:.4f}")
 cv2.destroyAllWindows()
 
 # Note: Run this: export LD_PRELOAD=/lib/aarch64-linux-gnu/libstdc++.so.6:$LD_PRELOAD
-# 2.5 second delay with or without undistort
+# 2.5 second delay with or without undistort (TODO retest this with new suite)
+# Not doing undistort boosts FPS by about 10, from 23fps to 33fps
