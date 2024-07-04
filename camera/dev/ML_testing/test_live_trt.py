@@ -9,24 +9,21 @@ from typing import List
 import cv2
 import numpy as np
 import time
-from camera_core import Undistort
+from camera_core import Camera, Image
+
+# Create a camera object
+camera = Camera(video_path="countdown.mp4", fps=30)
 
 # Load the exported TensorRT model
 trt_model = YOLO("yolov8n.engine", task="detect", verbose=False)
 
-# Load the undistortion
-undistort = Undistort("/home/inspiration/RX24-perception/camera/dev/calibration/calib_img/camera_intrinsic_matrix.txt", "/home/inspiration/RX24-perception/camera/dev/calibration/calib_img/camera_distortion_matrix.txt", (1920, 1080))
-
 # Run inference on a single sample frame to warm up the model
-# warmup_frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
 warmup_frame = cv2.imread("sample.jpg")
-warmup_frame = undistort.undistort(warmup_frame, with_cuda=True)
+warmup_frame = camera.warmup_undistort(warmup_frame)
 trt_model(warmup_frame)
-print("Finished warmup...")
 
 # Load the camera
-# cap = cv2.VideoCapture("v4l2src device=/dev/video0 ! image/jpeg, width=1920, height=1080,framerate=30/1 ! jpegdec ! videoconvert ! video/x-raw, format=BGR ! appsink ")
-cap = cv2.VideoCapture("countdown.mp4")
+camera.start_stream()
 
 # Set the window size
 cv2.namedWindow("Yolo", cv2.WINDOW_NORMAL) 
@@ -36,16 +33,11 @@ prev_frame_time = 0
 new_frame_time = 0
 true_start = time.time()
 # Run inference
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("Error: failed to capture image")
-        print(f'Final time: {time.time() - true_start} seconds')
-        break
-    
-    # Undistort the frame
-    frame = undistort.undistort(frame, with_cuda=True)
-
+while camera.stream:
+    frame : Image = camera.get_latest_frame(undistort=True, with_cuda=True)
+    if frame is None:
+        continue
+    frame = frame.frame
     # Run inference
     pre_time = time.time()
     results: list[Results] = trt_model(frame)
@@ -79,10 +71,10 @@ while True:
 
     if k == ord('q'):
         print("Exiting...")
+        camera.stop_stream()
         break
 
-# Release the camera
-cap.release()
+print(f"Total time taken: {time.time() - true_start:.4f}")
 cv2.destroyAllWindows()
 
 # Note: Run this: export LD_PRELOAD=/lib/aarch64-linux-gnu/libstdc++.so.6:$LD_PRELOAD
