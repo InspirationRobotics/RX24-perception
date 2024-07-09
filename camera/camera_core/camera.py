@@ -41,7 +41,7 @@ class Camera:
         int_calibration_path = pre_path / Path(f'{camera_type}/camera_intrinsic_matrix.txt')
         self.undistort = Undistort(int_calibration_path, dist_calibration_path, self.resolution)
 
-    def load_model(self, model_object : ML_Model):
+    def load_model_object(self, model_object : ML_Model):
         with self.model_lock:
             self.model = model_object
 
@@ -49,7 +49,7 @@ class Camera:
         with self.model_lock:
             self.model = ML_Model(model_path, model_type, half_precision=half_precision)
 
-    def switch_model(self, model_object : ML_Model):
+    def switch_model_object(self, model_object : ML_Model):
         with self.model_lock:
             self.model = model_object
 

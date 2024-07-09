@@ -5,13 +5,23 @@ import time
 # Create a camera object
 # camera = Camera(video_path="/home/inspiration/RX24-perception/camera/dev/ML_testing/countdown.mp4")
 camera = Camera()
+camera1 = Camera(4)
 
-camera.load_model("/home/inspiration/RX24-perception/camera/camera_core/models/yolov8n.pt", "YOLO")
+model = ML_Model("/home/inspiration/RX24-perception/camera/camera_core/models/yolov8n.engine", "tensorrt")
+model1 = ML_Model("/home/inspiration/RX24-perception/camera/camera_core/models/yolov8n.engine", "tensorrt")
+
+
+camera.load_model_object(model)
+camera1.load_model_object(model1)
 
 camera.warmup()
+camera1.warmup()
 
 camera.start_stream()
 camera.start_model()
+
+camera1.start_stream()
+camera1.start_model()
 
 cv2.namedWindow("Yolo", cv2.WINDOW_NORMAL) 
 cv2.resizeWindow("Yolo", 1280, 720)
@@ -21,7 +31,8 @@ while camera.stream:
 
     pre_time = time.time()
 
-    frame : Image = camera.get_latest_frame(undistort=False, with_cuda=True)
+    frame : Image = camera.get_latest_frame(undistort=True, with_cuda=True)
+    frame1 : Image = camera1.get_latest_frame(undistort=True, with_cuda=True)
     if frame is None:
         continue
     frame = frame.frame
@@ -34,7 +45,7 @@ while camera.stream:
         names = result.names
         for box in result.boxes:
             conf = box.conf.item()
-            if conf < 0.5:
+            if conf < 0.3:
                 continue
             x1, y1, x2, y2 = box.xyxy.cpu().numpy().flatten()
             cls_id = box.cls.item()
@@ -53,7 +64,10 @@ while camera.stream:
         break
 
 camera.stop_model()
+camera1.stop_model()
+
 camera.stop_stream()
+camera1.stop_stream()
 
 # video_path="/home/inspiration/RX24-perception/camera/dev/ML_testing/countdown.mp4"
 # cap = cv2.VideoCapture(video_path)
