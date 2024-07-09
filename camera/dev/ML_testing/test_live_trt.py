@@ -13,6 +13,8 @@ from camera_core import Camera, Image
 
 # Create a camera object
 camera = Camera()
+camera1 = Camera(4)
+camera2 = Camera(8)
 
 # Load the exported TensorRT model
 trt_model = YOLO("yolov8n.engine", task="detect", verbose=False)
@@ -24,6 +26,8 @@ trt_model(warmup_frame)
 
 # Load the camera
 camera.start_stream()
+camera1.start_stream()
+camera2.start_stream()
 
 # Set the window size
 cv2.namedWindow("Yolo", cv2.WINDOW_NORMAL) 
@@ -33,7 +37,7 @@ prev_frame_time = 0
 new_frame_time = 0
 true_start = time.time()
 # Run inference
-while camera.stream:
+while camera.stream and camera1.stream and camera2.stream:
 
     # Calculate FPS
     prev_frame_time = time.time()
@@ -43,9 +47,21 @@ while camera.stream:
     if frame is None:
         continue
     frame = frame.frame
+    # Get the latest frame
+    frame1 : Image = camera1.get_latest_frame(undistort=True, with_cuda=True)
+    if frame1 is None:
+        continue
+    frame1 = frame1.frame
+    # Get the latest frame
+    frame2 : Image = camera2.get_latest_frame(undistort=True, with_cuda=True)
+    if frame2 is None:
+        continue
+    frame2 = frame2.frame
     # Run inference
     pre_time = time.time()
     results: list[Results] = trt_model(frame)
+    results1: list[Results] = trt_model(frame1)
+    results2: list[Results] = trt_model(frame2)
     post_time = time.time() - pre_time
     print(f"Inference Time taken: {post_time:.4f}")
 
@@ -62,7 +78,7 @@ while camera.stream:
             cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
             cv2.putText(frame, f"{names[cls_id]}: {conf:.2f}", (int(x1), int(y1)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
     post_time = time.time() - pre_time
-    print(f"Draw Time taken: {post_time :.4f}")
+    # print(f"Draw Time taken: {post_time :.4f}")
 
     # Write FPS on the top left corner
     new_frame_time = time.time()
@@ -76,10 +92,12 @@ while camera.stream:
     k = cv2.waitKey(1) & 0xFF
     if k == ord('q'):
         print("Exiting...")
-        camera.stop_stream()
         break
 
 print(f"Total time taken: {time.time() - true_start:.4f}")
+camera.stop_stream()
+camera1.stop_stream()
+camera2.stop_stream()
 cv2.destroyAllWindows()
 
 # Note: Run this: export LD_PRELOAD=/lib/aarch64-linux-gnu/libstdc++.so.6:$LD_PRELOAD

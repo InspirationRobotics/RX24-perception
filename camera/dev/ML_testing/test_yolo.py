@@ -1,26 +1,39 @@
+import os
+os.environ['YOLO_VERBOSE'] = 'False'
+
 from ultralytics import YOLO
 import numpy as np
 import cv2
 import time
+from camera_core import Camera, Image
 
 # Load a YOLOv8n PyTorch model
 model = YOLO("yolov8n.pt")
 
-cap = cv2.VideoCapture("v4l2src device=/dev/video0 ! image/jpeg, width=1920, height=1080,framerate=30/1 ! jpegdec ! videoconvert ! video/x-raw, format=BGR ! appsink ")
-#cap = cv2.VideoCapture(0) 
+# Create a camera object
+camera = Camera()
+
+warmup_frame = cv2.imread("sample.jpg")
+warmup_frame = camera.warmup_undistort(warmup_frame)
+model(warmup_frame)
+
+camera.start_stream()
+
+#cap = cv2.VideoCapture("v4l2src device=/dev/video0 ! image/jpeg, width=1920, height=1080,framerate=30/1 ! jpegdec ! videoconvert ! video/x-raw, format=BGR ! appsink ")
+# cap = cv2.VideoCapture(0)
 
 cv2.namedWindow("Camera", cv2.WINDOW_NORMAL)
-cv2.resizeWindow("Camera", 640, 480)
+cv2.resizeWindow("Camera", 1280, 720)
 
 pre_frame = 0
 post_frame = 0
 
-while True:
+while camera.stream:
     pre_frame = time.time()
-    ret, frame = cap.read()
-    if not ret:
-        print("Error: failed to capture image")
+    frame : Image = camera.get_latest_frame(undistort=True, with_cuda=True)
+    if frame is None:
         continue
+    frame = frame.frame
     results = model.predict(frame)
     result = results[0]
     bboxes = np.array(result.boxes.xyxy.cpu(), dtype="int")
@@ -38,5 +51,5 @@ while True:
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-cap.release()
+camera.stop_stream()
 cv2.destroyAllWindows()
