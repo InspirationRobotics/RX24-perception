@@ -120,14 +120,19 @@ class Camera:
         self.frame = frame
         return Image(frame)
     
+    def get_latest_model_results(self) -> List:
+        with self.model_lock:
+            return self.results
+    
     def model_background_thread(self):
         while self.run_model:
-            frame = self.frame
+            with self.camera_lock:
+                frame = self.frame
             if self.stream:
                 with self.model_lock:
                     if self.model is not None:
                         self.results = self.model.predict(frame)
-            time.sleep(1/(self.fps)+10)
+            time.sleep(1/(self.fps))
 
     def camera_background_thread(self):
         if self.video_path == None:
