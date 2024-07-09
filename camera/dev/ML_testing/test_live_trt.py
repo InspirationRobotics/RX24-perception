@@ -22,7 +22,7 @@ trt_model = YOLO("yolov8n.engine", task="detect", verbose=False)
 # Run inference on a single sample frame to warm up the model
 warmup_frame = cv2.imread("sample.jpg")
 warmup_frame = camera.warmup_undistort(warmup_frame)
-trt_model(warmup_frame)
+trt_model(warmup_frame, half=True)
 
 # Load the camera
 camera.start_stream()
@@ -57,13 +57,14 @@ while camera.stream and camera1.stream and camera2.stream:
     if frame2 is None:
         continue
     frame2 = frame2.frame
+    print(f'Time to grab frame: {time.time() - prev_frame_time:.4f}')
     # Run inference
     pre_time = time.time()
-    results: list[Results] = trt_model(frame)
-    results1: list[Results] = trt_model(frame1)
-    results2: list[Results] = trt_model(frame2)
+    results: list[Results] = trt_model(frame, half=True)
+    # results1: list[Results] = trt_model(frame1, half=True)
+    # results2: list[Results] = trt_model(frame2, half=True)
     post_time = time.time() - pre_time
-    print(f"Inference Time taken: {post_time:.4f}")
+    # print(f"Inference Time taken: {post_time:.4f}")
 
     pre_time = time.time()
     # Draw the bounding boxes
