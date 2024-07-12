@@ -1,3 +1,6 @@
+import os
+os.environ['YOLO_VERBOSE'] = 'False'
+
 from camera_core import Camera, Image, ML_Model
 import cv2
 import time
@@ -7,8 +10,10 @@ import time
 camera = Camera()
 camera1 = Camera(4)
 
-model = ML_Model("/home/inspiration/RX24-perception/camera/camera_core/models/yolov8n.engine", "tensorrt")
-model1 = ML_Model("/home/inspiration/RX24-perception/camera/camera_core/models/yolov8n.engine", "tensorrt")
+full_engine = '/home/inspiration/RX24-perception/camera/dev/ML_testing/yolov8n.engine'
+half_engine = '/home/inspiration/RX24-perception/camera/camera_core/models/yolov8n.engine'
+model = ML_Model(half_engine, "tensorrt")
+model1 = ML_Model(half_engine, "tensorrt")
 
 
 camera.load_model_object(model)
