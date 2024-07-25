@@ -13,8 +13,8 @@ cv2.resizeWindow("Undistorted", 640, 480)
 cv2.resizeWindow("Original", 640, 480)
 
 # load the camera intrinsic matrix and distortion coefficients
-intrinsics = np.loadtxt('calib_img/camera_intrinsic_matrix.txt')
-dist = np.loadtxt('calib_img/camera_distortion_matrix.txt')
+intrinsics = np.loadtxt('camera/dev/calibration/calib_img/camera_intrinsic_matrix.txt')
+dist = np.loadtxt('camera/dev/calibration/calib_img/camera_distortion_matrix.txt')
 
 # optimal camera matrix
 new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(intrinsics, dist, (1920, 1080), 1, (1920, 1080))
