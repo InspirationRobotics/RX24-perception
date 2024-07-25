@@ -90,7 +90,8 @@ class Camera:
     
     def warmup(self, frame : np.ndarray = None) -> np.ndarray:
         temp_frame = self.warmup_undistort(frame)
-        self.model.predict(temp_frame)
+        if self.model is not None:
+            self.model.predict(temp_frame)
 
     def warmup_undistort(self, frame : np.ndarray = None) -> np.ndarray:
         if frame is None:
