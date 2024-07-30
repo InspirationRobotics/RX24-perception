@@ -7,10 +7,18 @@ from sensor_msgs.msg import PointCloud2, PointField, Imu
 from sensor_msgs_py import point_cloud2 as pc2
 
 class CustomPointCloud:
-    def __init__(self,  header : Header, points : np.ndarray):
+    def __init__(self,  header : Header, points : np.ndarray = None):
+        if points is None:
+            self._copy(header)
+            return
         self.timestamp = header.stamp.sec + header.stamp.nanosec * 1e-9
         self.local_timestamp = time.time()
         self.points = points
+
+    def _copy(self, to_copy : 'CustomPointCloud'):
+        self.timestamp = to_copy.timestamp
+        self.local_timestamp = to_copy.local_timestamp
+        self.points = to_copy.points.copy()
 
 class Lidar:
 
@@ -29,7 +37,8 @@ class Lidar:
     def add_callback(self, callback):
         self.callback = callback
 
-    def lidar_callback(self, point_cloud : PointCloud2):
+    def process_lidar(self, point_cloud : PointCloud2):
+        # Currently takes ~0.02 seconds
         points_list = []
         cloud : np.ndarray = pc2.read_points(point_cloud, field_names=("x", "y", "z"), skip_nans=True)
         for pt in cloud:
@@ -46,6 +55,9 @@ class Lidar:
                     break
             self.buffer = self.buffer[last_valid:]
 
+    def lidar_callback(self, point_cloud : PointCloud2):
+        self.process_lidar(point_cloud)
+        # Call the external callback function
         if self.callback is not None:
             self.callback(self.get_points())
 
@@ -54,10 +66,11 @@ class Lidar:
         self.linear_acceleration = np.array([imu_msg.linear_acceleration.x, imu_msg.linear_acceleration.y, imu_msg.linear_acceleration.z])
 
     def get_points(self):
+        # Takes ~0.00005 seconds
         list_copy = [] 
         with self.buffer_lock:
             for point_cloud in self.buffer:
-                list_copy.append(point_cloud)
+                list_copy.append(CustomPointCloud(point_cloud))
         return list_copy
     
     def get_points_np(self):
