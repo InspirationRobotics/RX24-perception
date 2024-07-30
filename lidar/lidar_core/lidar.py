@@ -1,6 +1,7 @@
 import time
 import numpy as np
-from typing import List
+from .utils import *
+
 from std_msgs.msg import Header
 from sensor_msgs.msg import PointCloud2, PointField, Imu
 from sensor_msgs_py import point_cloud2 as pc2
@@ -18,10 +19,12 @@ class Lidar:
         self.decay_rate = decay_rate
         self.transformation_matrix = transformation_matrix
         self.buffer : List[CustomPointCloud] = []
+        self.buffer_lock = Lock()
 
         self.topic = f"/livox/{lidar_id}"
         self.angular_velocity = None
         self.linear_acceleration = None
+        self.callback = None
 
     def add_callback(self, callback):
         self.callback = callback
@@ -33,19 +36,30 @@ class Lidar:
             points_list.append([pt[0], pt[1], pt[2]])
 
         points = np.array(points_list)
-        self.buffer.append(CustomPointCloud(point_cloud.header, points))
+        with self.buffer_lock:
+            self.buffer.append(CustomPointCloud(point_cloud.header, points))
 
-        current_time = time.time()
-        for i in range(len(self.buffer)-1, -1, -1):
-            if current_time - self.buffer[i].local_timestamp > self.decay_rate:
-                self.buffer.pop(i)
+            current_time = self.buffer[-1].timestamp
+            for i in range(len(self.buffer)):
+                if current_time - self.buffer[i].timestamp < self.decay_rate:
+                    last_valid = i
+                    break
+            self.buffer = self.buffer[last_valid:]
 
         if self.callback is not None:
-            self.callback(self.buffer)
+            self.callback(self.get_points())
 
     def imu_callback(self, imu_msg : Imu):
         self.angular_velocity = np.array([imu_msg.angular_velocity.x, imu_msg.angular_velocity.y, imu_msg.angular_velocity.z])
         self.linear_acceleration = np.array([imu_msg.linear_acceleration.x, imu_msg.linear_acceleration.y, imu_msg.linear_acceleration.z])
 
     def get_points(self):
-        return self.buffer
+        list_copy = [] 
+        with self.buffer_lock:
+            for point_cloud in self.buffer:
+                list_copy.append(point_cloud)
+        return list_copy
+    
+    def get_points_np(self):
+        with self.buffer_lock:
+            return np.array([point_cloud.points for point_cloud in self.buffer])
