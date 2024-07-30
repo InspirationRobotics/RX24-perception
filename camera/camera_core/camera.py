@@ -124,11 +124,11 @@ class Camera:
         return self.resolution
     
     def warmup(self, frame : np.ndarray = None) -> np.ndarray:
-        temp_frame = self.warmup_undistort(frame)
+        temp_frame = self._warmup_undistort(frame)
         if self.model is not None:
             self.model.predict(temp_frame)
 
-    def warmup_undistort(self, frame : np.ndarray = None) -> np.ndarray:
+    def _warmup_undistort(self, frame : np.ndarray = None) -> np.ndarray:
         if frame is None:
             # Make a frame with random values
             warmup_frame = np.random.randint(0, 255, (self.resolution[1], self.resolution[0], 3), dtype=np.uint8)
