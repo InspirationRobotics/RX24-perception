@@ -169,7 +169,7 @@ class Camera:
                 frame = self.raw_frame
                 self.raw_frame = None
             elif self.frame is not None:
-                frame = self.frame
+                return Image(self.frame)
             else:
                 return None
         if undistort:

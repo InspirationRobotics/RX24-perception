@@ -3,17 +3,17 @@ import cv2
 import time
 
 # Create a camera object
-camera = Camera(video_path="/home/inspiration/RX24-perception/camera/dev/ML_testing/countdown.mp4")
+camera = Camera(4)
 
 camera.warmup()
 
 camera.start()
 
 cv2.namedWindow("Yolo", cv2.WINDOW_NORMAL) 
-cv2.resizeWindow("Yolo", 1280, 720)
+cv2.resizeWindow("Yolo", 640, 480)
 
 while camera.stream:
-    frame : Image = camera.get_latest_frame(undistort=False, with_cuda=True)
+    frame : Image = camera.get_latest_frame(undistort=True, with_cuda=True)
     if frame is None:
         continue
     frame = frame.frame
@@ -21,6 +21,7 @@ while camera.stream:
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
+camera.stop()
 # video_path="/home/inspiration/RX24-perception/camera/dev/ML_testing/countdown.mp4"
 # cap = cv2.VideoCapture(video_path)
 
