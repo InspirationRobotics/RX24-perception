@@ -5,6 +5,7 @@ from typing import List, Tuple
 from threading import Thread, Lock
 from camera_core.undistort import Undistort
 from camera_core.ml_model import ML_Model, Results
+from camera_core.find_camera import FindCamera
 import time
 
 '''
@@ -20,12 +21,17 @@ class Image:
 
 class Camera:
 
-    def __init__(self, /, camera_id : int = 0, *, model : ML_Model = None, resolution : Tuple[int, int] = (1920, 1080), fps : int = 30, video_path : str | Path = None, camera_type : str = 'wide'):
-        self.camera_path = f'/dev/video{camera_id}'
+    def __init__(self, /, camera_id : int = 0, camera_name : str = "Unknown Camera", *, model : ML_Model = None, 
+                 resolution : Tuple[int, int] = (1920, 1080), fps : int = 30, 
+                 video_path : str | Path = None, camera_type : str = 'wide', 
+                 bus_addr : Tuple[int, int] = None):
+
+        self._init_camera_path(camera_id, bus_addr)
         self.video_path = video_path
         self.resolution = resolution
         self.fps = fps
         self.model = model
+        self.camera_name = camera_name
         self._load_calibration(camera_type)
 
         self.stream = False
@@ -40,6 +46,21 @@ class Camera:
         self.camera_lock = Lock()
         self.model_lock = Lock()
         
+    def _error(self, message : str):
+        print(f"{self.camera_name} Error: {message}")
+
+    def _info(self, message : str):
+        print(f"{self.camera_name} Info: {message}")
+
+    def _init_camera_path(self, camera_id : int, bus_addr : Tuple[int, int]):
+        if bus_addr is not None:
+            fc = FindCamera()
+            self.camera_path = fc.find_cam(bus_addr[0], bus_addr[1])
+            if self.camera_path is None:
+                raise ValueError("Error: Camera not found")
+        else:
+            self.camera_path = f'/dev/video{camera_id}'
+    
     def _load_calibration(self, camera_type : str):
         pre_path = Path('/home/inspiration/RX24-perception/camera/camera_core/config') # TODO Make this relative
         dist_calibration_path = pre_path / Path(f'{camera_type}/camera_distortion_matrix.txt')
@@ -48,7 +69,7 @@ class Camera:
 
     def load_model_object(self, model_object : ML_Model):
         if not isinstance(model_object, ML_Model):
-            print("Error: Must be of ML_Model type")
+            self._error("Must be of ML_Model type")
             return
         with self.model_lock:
             self.model = model_object
@@ -59,7 +80,7 @@ class Camera:
 
     def switch_model_object(self, model_object : ML_Model):
         if not isinstance(model_object, ML_Model):
-            print("Error: Must be of ML_Model type")
+            self._error("Must be of ML_Model type")
             return
         with self.model_lock:
             self.model = model_object
@@ -79,18 +100,18 @@ class Camera:
 
     def start_model(self):
         if not self.stream:
-            print("Error: Camera stream not started, cannot start model thread")
+            self._error("Stream not started, cannot start model thread")
             return
         if self.model is None:
-            print("Error: No model loaded, cannot start model thread")
+            self._error("No model loaded, cannot start model thread")
             return
         if self.run_model:
-            print("Error: Model thread already running, skipping...")
+            self._error("Model thread already running, skipping...")
             return
         self.run_model = True
         self.model_thread = Thread(target=self._model_background_thread)
         self.model_thread.start()
-        print("Model thread started")
+        self._info("Model thread started")
 
     def stop_model(self):
         self.run_model = False
@@ -98,16 +119,16 @@ class Camera:
             self.model_thread.join()
         except:
             return
-        print("Model thread stopped")
+        self._info("Model thread stopped")
 
     def start_stream(self):
         if self.stream:
-            print("Error: Camera stream already started")
+            self._error("Stream already started")
             return
         self.stream = True
         self.camera_thread = Thread(target=self._camera_background_thread)
         self.camera_thread.start()
-        print("Camera stream started")
+        self._info("Stream started")
 
     def stop_stream(self):
         self.stream = False
@@ -116,7 +137,7 @@ class Camera:
             self.camera_thread.join()
         except:
             return
-        print("Camera stream stopped")
+        self._info("Stream stopped")
 
     def get_size(self, undistort = True) -> Tuple[int, int]:
         if undistort:
@@ -135,7 +156,7 @@ class Camera:
         else:
             warmup_frame = frame
         warmup_frame = self.undistort.undistort(warmup_frame, with_cuda=True)
-        print("Camera undistortion warmed up...")
+        self._info("Undistortion warmed up...")
         return warmup_frame
 
     def get_latest_frame(self, *, undistort = False, with_cuda = False) -> Image:
@@ -191,7 +212,7 @@ class Camera:
             try:
                 self.cap = cv2.VideoCapture(capture_flag)
             except:
-                print("Error: failed to open camera using GStreamer; Defaulting to OpenCV")
+                self._error("Failed to open camera using GStreamer; Defaulting to OpenCV")
                 self.cap = cv2.VideoCapture(self.camera_path)
             
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
@@ -203,7 +224,7 @@ class Camera:
             with self.camera_lock:
                 ret, self.raw_frame = self.cap.read()
                 if not ret:
-                    print("Error: failed to capture image")
+                    self._error("Failed to capture image")
                     self.stream = False
                     break
             time.sleep(1/(self.fps))

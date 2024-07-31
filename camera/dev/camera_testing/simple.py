@@ -5,9 +5,9 @@ import time
 # Create a camera object
 camera = Camera(video_path="/home/inspiration/RX24-perception/camera/dev/ML_testing/countdown.mp4")
 
-camera.warmup_undistort()
+camera.warmup()
 
-camera.start_stream()
+camera.start()
 
 cv2.namedWindow("Yolo", cv2.WINDOW_NORMAL) 
 cv2.resizeWindow("Yolo", 1280, 720)
