@@ -21,8 +21,8 @@ class LidarNode(Node):
         self.lidar = Lidar('lidar', decay_rate=0.2)
         self.subcription = self.create_subscription(PointCloud2, self.lidar.topic, self.lidar.lidar_callback, 10)
 
-    def save_lidar_data(self, timestamp):
-        np.save(str(IMG_FILE_PATH / f"lidar_data_{time_stamp}.npy"), self.lidar.get_points_np())
+    def save_lidar_data(self, file_name):
+        np.save(str(IMG_FILE_PATH / f"{file_name}"), self.lidar.get_points_np())
 
 
 rclpy.init(args=None)
@@ -56,8 +56,9 @@ while True:
         file_name = f"image_{i}_{time_stamp}.jpg"
         print(f'saving image: {file_name}')
         cv2.imwrite(str(IMG_FILE_PATH / file_name), frame)
-        node.save_lidar_data(time_stamp)
-        print(f'saving lidar data: lidar_data_{time_stamp}.npy')
+        file_name = f"lidar_{i}_{time_stamp}.npy"
+        node.save_lidar_data(file_name)
+        print(f'saving lidar data: {file_name}')
 
     if i == 5:
         print("Max number of images saved")
