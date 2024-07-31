@@ -3,14 +3,14 @@ import cv2
 import time
 
 # Create a camera object
-camera = Camera(0)
+camera = Camera(4)
 
 camera.warmup()
 
 camera.start()
 
 cv2.namedWindow("Yolo", cv2.WINDOW_NORMAL) 
-cv2.resizeWindow("Yolo", 1280, 720)
+cv2.resizeWindow("Yolo", 640, 480)
 
 while camera.stream:
     frame : Image = camera.get_latest_frame(undistort=True, with_cuda=True)
