@@ -34,6 +34,9 @@ class Lidar:
         self.linear_acceleration = None
         self.callback = None
 
+    def __str__(self):
+        return f"{self.lidar_id}"
+
     def add_callback(self, callback):
         self.callback = callback
 
@@ -65,7 +68,7 @@ class Lidar:
         self.angular_velocity = np.array([imu_msg.angular_velocity.x, imu_msg.angular_velocity.y, imu_msg.angular_velocity.z])
         self.linear_acceleration = np.array([imu_msg.linear_acceleration.x, imu_msg.linear_acceleration.y, imu_msg.linear_acceleration.z])
 
-    def get_points(self):
+    def get_points(self) -> List[CustomPointCloud]:
         # Takes ~0.00005 seconds
         list_copy = [] 
         with self.buffer_lock:
