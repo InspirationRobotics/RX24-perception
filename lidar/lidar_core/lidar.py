@@ -1,6 +1,6 @@
 import time
 import numpy as np
-from .utils import *
+from lidar_core.utils import *
 
 from std_msgs.msg import Header
 from sensor_msgs.msg import PointCloud2, PointField, Imu

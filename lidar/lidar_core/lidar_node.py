@@ -1,7 +1,7 @@
 import time
 import numpy as np
-from .utils import *
-from .lidar import Lidar, CustomPointCloud
+from lidar_core.utils import *
+from lidar_core import Lidar, CustomPointCloud
 
 import rclpy
 from rclpy.node import Node
@@ -35,6 +35,7 @@ class LidarNode(Node):
         self.lidar_executor = MultiThreadedExecutor()
         self.lidar_executor.add_node(self)
         self.spin_thread.start()
+        self.active = True
         print("Started lidar node...")
 
     def stop(self):
@@ -42,7 +43,10 @@ class LidarNode(Node):
             return
         self.spin_thread.stop()
         self.lidar_executor.shutdown()
+        self.active = False
         print("Stopped lidar node...")
 
     def _run(self, dummy):
-        self.lidar_executor.spin_once()
+        # This is a blocking call so if the lidar stops publishing, the node will hang
+        # For some reason setting the timeout to 0 reduces the rate of the lidar data
+        self.lidar_executor.spin_once() 

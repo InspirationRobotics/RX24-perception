@@ -7,8 +7,13 @@ from pathlib import Path
 from camera_core import Camera, Image
 from lidar_core import Lidar, LidarNode
 
+# Get current data and format as string
+time_stamp = time.strftime("%Y%m%d-%H%M%S")
+# Set maximum number of images to save
+MAX_IMAGES = 5
+# Set path to save images
 CURRENT_FILE_PATH = Path(__file__).parent.absolute()
-IMG_FILE_PATH = CURRENT_FILE_PATH / "calib_img_temp"
+IMG_FILE_PATH = CURRENT_FILE_PATH / f"calib_img_temp_{time_stamp}"
 
 if not IMG_FILE_PATH.exists():
     os.mkdir(IMG_FILE_PATH)
@@ -43,17 +48,19 @@ while True:
 
     elif k == ord('s'):
         i += 1
-        time_stamp = time.time()
-        file_name = f"image_{i}_{time_stamp}.jpg"
+        file_name = f"image_{i}.jpg"
         print(f'saving image: {file_name}')
         cv2.imwrite(str(IMG_FILE_PATH / file_name), frame)
-        file_name = f"lidar_{i}_{time_stamp}.npy"
+        file_name = f"lidar_{i}.npy"
         np.save(str(IMG_FILE_PATH / f"{file_name}"), lidar.get_points_np())
         print(f'saving lidar data: {file_name}')
 
-    if i == 5:
+    if i >= MAX_IMAGES:
         print("Max number of images saved")
         break
+
+if i == 0:
+    os.removedirs(IMG_FILE_PATH)
 
 camera.stop()
 lidar_node.stop()

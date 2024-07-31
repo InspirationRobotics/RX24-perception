@@ -8,7 +8,7 @@ class BackgroundThread:
         self.rate = rate
         self.args = args
         self.running = False
-        self.thread = Thread(target=self.run)
+        self.thread = Thread(target=self.run, daemon=True)
 
     def start(self):
         self.running = True
