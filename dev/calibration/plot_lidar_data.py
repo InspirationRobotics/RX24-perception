@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load the lidar data
-lidar_data = np.load("/home/inspiration/RX24-perception/dev/calibration/calib_img_temp/lidar_3_1722393458.4317455.npy", allow_pickle=True)
+path = '/home/inspiration/RX24-perception/dev/calibration/calib_img_temp/lidar_1_1722452988.2240505.npy'
+lidar_data = np.load(path, allow_pickle=True)
 
 # Plot the lidar data
 plt.ion()
@@ -25,7 +26,8 @@ ax.set_title('Lidar data')
 
 # Plot the lidar data
 for point_cloud in lidar_data:
-    ax.scatter(point_cloud[:,0], point_cloud[:,1], point_cloud[:,2], s=1)
+    pc = point_cloud[::5] # Downsample the point cloud (grabs every 5th point)
+    ax.scatter(pc[:,0], pc[:,1], pc[:,2], s=1)
 
 plt.show(block=True)
 plt.ioff()

@@ -1,13 +1,11 @@
-import cv2
-import numpy as np
 import os
-from pathlib import Path
+import cv2
 import time
-
 import rclpy
-from rclpy.node import Node
-from lidar_core import Lidar, CustomPointCloud, PointCloud2
+import numpy as np
+from pathlib import Path
 from camera_core import Camera, Image
+from lidar_core import Lidar, LidarNode
 
 CURRENT_FILE_PATH = Path(__file__).parent.absolute()
 IMG_FILE_PATH = CURRENT_FILE_PATH / "calib_img_temp"
@@ -15,18 +13,10 @@ IMG_FILE_PATH = CURRENT_FILE_PATH / "calib_img_temp"
 if not IMG_FILE_PATH.exists():
     os.mkdir(IMG_FILE_PATH)
 
-class LidarNode(Node):
-    def __init__(self):
-        super().__init__('lidar_node')
-        self.lidar = Lidar('lidar', decay_rate=0.2)
-        self.subcription = self.create_subscription(PointCloud2, self.lidar.topic, self.lidar.lidar_callback, 10)
-
-    def save_lidar_data(self, file_name):
-        np.save(str(IMG_FILE_PATH / f"{file_name}"), self.lidar.get_points_np())
-
-
 rclpy.init(args=None)
-node = LidarNode()
+
+lidar = Lidar('lidar', decay_rate=0.2)
+lidar_node = LidarNode([lidar])
 
 camera = Camera(4)
 camera.warmup()
@@ -34,6 +24,7 @@ camera.warmup()
 cv2.namedWindow("Camera", cv2.WINDOW_NORMAL) 
 cv2.resizeWindow("Camera", 640, 480)
 
+lidar_node.start()
 camera.start()
 
 i=0
@@ -57,15 +48,14 @@ while True:
         print(f'saving image: {file_name}')
         cv2.imwrite(str(IMG_FILE_PATH / file_name), frame)
         file_name = f"lidar_{i}_{time_stamp}.npy"
-        node.save_lidar_data(file_name)
+        np.save(str(IMG_FILE_PATH / f"{file_name}"), lidar.get_points_np())
         print(f'saving lidar data: {file_name}')
 
     if i == 5:
         print("Max number of images saved")
         break
-    rclpy.spin_once(node)
-    time.sleep(1/35)
 
 camera.stop()
+lidar_node.stop()
 cv2.destroyAllWindows()
 rclpy.shutdown()

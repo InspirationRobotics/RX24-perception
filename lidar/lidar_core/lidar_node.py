@@ -18,6 +18,8 @@ class LidarNode(Node):
         self.init_subscriptions()
         self.spin_thread = BackgroundThread(self._run, rate = 30)
 
+        self.active = False
+        
     def create_lidar_subscription(self, lidar : Lidar):
         callback_group = MutuallyExclusiveCallbackGroup()
         subscription = self.create_subscription(PointCloud2, lidar.topic, lidar.lidar_callback, 10, callback_group=callback_group)
@@ -28,13 +30,19 @@ class LidarNode(Node):
             self.create_lidar_subscription(lidar)
 
     def start(self):
+        if self.active:
+            return
         self.lidar_executor = MultiThreadedExecutor()
         self.lidar_executor.add_node(self)
         self.spin_thread.start()
+        print("Started lidar node...")
 
     def stop(self):
+        if not self.active:
+            return
         self.spin_thread.stop()
         self.lidar_executor.shutdown()
+        print("Stopped lidar node...")
 
     def _run(self, dummy):
         self.lidar_executor.spin_once()
