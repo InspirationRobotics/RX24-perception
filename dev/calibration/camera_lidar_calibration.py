@@ -3,7 +3,7 @@ import numpy as np
 import open3d as o3d
 import matplotlib.pyplot as plt
 from utils import calculate_transformation, apply_transformation_to_point_cloud
-from undistort import Undistort
+# from undistort import Undistort
 
 # Function to generate synthetic LiDAR data points
 def generate_filled_rectangle_lidar_data(width=2.0, height=1.0, num_points_per_unit_area=25, noise_level=0.01):
@@ -83,27 +83,28 @@ def main():
     dist_coeffs = np.loadtxt(CAMERA_DISTORTION_MATRIX_FILE)
     
     # Initialize undistortion object with camera parameters
-    undistorter = Undistort(camera_matrix, dist_coeffs, 1920, 1080)
+    # undistorter = Undistort(camera_matrix, dist_coeffs, 1920, 1080)
     
     # Generate synthetic LiDAR data
     synthetic_lidar_data = generate_filled_rectangle_lidar_data()
     visualize_point_cloud(synthetic_lidar_data, "Original LiDAR Points")
-    
+    print(synthetic_lidar_data.shape)
+
     # Automatically detect corners in the LiDAR point cloud
     lidar_corners = detect_rectangle_corners(synthetic_lidar_data)
     
     # Read and undistort an image using the camera parameters
     image = cv2.imread('camera/dev/calibration/calib_img/image_7.jpg')
-    undistorted_image = undistorter.undistort(image)
+    # undistorted_image = undistorter.undistort(image)
 
     # DEBUG STATEMENT
     if image is None:
-        print(f"Error: Unable to load image at {image_path}")
+        # print(f"Error: Unable to load image at {image_path}")
         return
     
     # Manually select key points in the camera image
     print("Select corresponding key points in the camera image.")
-    camera_corners = select_points(undistorted_image)
+    camera_corners = select_points(image)
     
     # DEBUG STATEMENTS
     print("Camera Corners:", camera_corners)

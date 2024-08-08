@@ -39,8 +39,10 @@ def apply_transformation_to_point_cloud(point_cloud, transformation_matrix):
     :param transformation_matrix: (4, 4) transformation matrix.
     :return: Transformed point cloud (N, 3).
     """
+    original_shape = point_cloud.shape
+    point_cloud = point_cloud.reshape(-1, 3)  # Flatten the point cloud array to 2D
     ones = np.ones((point_cloud.shape[0], 1))
     point_cloud_homogeneous = np.hstack([point_cloud, ones])
     transformed_points = (transformation_matrix @ point_cloud_homogeneous.T).T
     
-    return transformed_points[:, :3]
+    return transformed_points[:, :3].reshape(original_shape)  # Reshape back to the original shape if needed
