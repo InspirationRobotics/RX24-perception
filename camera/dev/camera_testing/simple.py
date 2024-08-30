@@ -3,8 +3,8 @@ import cv2
 import time
 
 # Create a camera object
-camera = Camera(bus_addr=[1,7])
-camera2 = Camera(bus_addr=[1,8])
+camera = Camera(bus_addr=[1,7], camera_type='port') #port
+camera2 = Camera(bus_addr=[1,8], camera_type='starboard') #starboard
 
 
 camera.warmup()
@@ -30,8 +30,8 @@ size = (1919,972)
 #                         20, size)
 
 while camera.stream:
-    frame : Image = camera.get_latest_frame(undistort=True, with_cuda=True)
-    frame2 : Image = camera2.get_latest_frame(undistort=True, with_cuda=True)
+    frame : Image = camera.get_latest_frame()
+    frame2 : Image = camera2.get_latest_frame()
     if frame is None or frame2 is None:
         continue
     frame = frame.frame

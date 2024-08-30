@@ -23,7 +23,7 @@ class Camera:
 
     def __init__(self, /, camera_id : int = 0, camera_name : str = "Unknown Camera", *, model : ML_Model = None, 
                  resolution : Tuple[int, int] = (1920, 1080), fps : int = 30, 
-                 video_path : str | Path = None, camera_type : str = 'wide', 
+                 video_path : str | Path = None, camera_type : str = 'port', 
                  bus_addr : Tuple[int, int] = None):
 
         self._init_camera_path(camera_id, bus_addr)
