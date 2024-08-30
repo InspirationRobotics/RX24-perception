@@ -10,7 +10,7 @@ from lidar_core import Lidar, LidarNode
 # Get current data and format as string
 time_stamp = time.strftime("%Y%m%d-%H%M%S")
 # Set maximum number of images to save
-MAX_IMAGES = 5
+MAX_IMAGES = 10
 # Set path to save images
 CURRENT_FILE_PATH = Path(__file__).parent.absolute()
 IMG_FILE_PATH = CURRENT_FILE_PATH / f"calib_img_temp_{time_stamp}"
@@ -23,7 +23,7 @@ rclpy.init(args=None)
 lidar = Lidar('lidar', decay_rate=0.2)
 lidar_node = LidarNode([lidar])
 
-camera = Camera(4)
+camera = Camera(bus_addr=[1,7], camera_type='port')
 camera.warmup()
 
 cv2.namedWindow("Camera", cv2.WINDOW_NORMAL) 

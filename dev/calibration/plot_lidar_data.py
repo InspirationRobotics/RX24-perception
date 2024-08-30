@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load the lidar data
-path = 'calib_img_temp_20240801-155919/lidar_4.npy'
+path = '/home/inspiration/RX24-perception/dev/calibration/calib_img_temp_20240829-190725/lidar_2.npy'
 lidar_data = np.load(path, allow_pickle=True)
 
 # Plot the lidar data
