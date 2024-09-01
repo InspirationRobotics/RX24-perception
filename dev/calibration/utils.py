@@ -27,12 +27,3 @@ def calculate_transformation(camera_corners, lidar_corners, camera_matrix, dist_
     transformation_matrix[:3, 3] = tvec.flatten()
     
     return transformation_matrix
-
-def apply_transformation_to_point_cloud(point_cloud, transformation_matrix):
-    original_shape = point_cloud.shape
-    point_cloud = point_cloud.reshape(-1, 3)
-    ones = np.ones((point_cloud.shape[0], 1))
-    point_cloud_homogeneous = np.hstack([point_cloud, ones])
-    transformed_points = (transformation_matrix @ point_cloud_homogeneous.T).T
-    
-    return transformed_points[:, :3].reshape(original_shape)

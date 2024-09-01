@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from utils import calculate_transformation, apply_transformation_to_point_cloud
+from utils import calculate_transformation
 
 # Function to plot 3D points
 def plot_points(points, title, ax, color='b'):
@@ -42,17 +42,17 @@ def select_points_in_point_cloud(lidar_data):
             selected_index += 1
             print(f"Selected Point {selected_index}: {current_point}")
         elif event.key == 'up':
-            current_point[2] += 0.05
+            current_point[2] += 0.015
         elif event.key == 'down':
-            current_point[2] -= 0.05
+            current_point[2] -= 0.015
         elif event.key == 'left':
-            current_point[1] -= 0.05
+            current_point[1] -= 0.015
         elif event.key == 'right':
-            current_point[1] += 0.05
+            current_point[1] += 0.015
         elif event.key == '.':
-            current_point[0] += 0.05
+            current_point[0] += 0.015
         elif event.key == ',':
-            current_point[0] -= 0.05
+            current_point[0] -= 0.015
         
         current_point_plot.remove()
         current_point_plot = ax.scatter([current_point[0]], [current_point[1]], [current_point[2]], color='r', s=20)
@@ -101,10 +101,7 @@ def visualize_point_cloud(points, title="Point Cloud"):
     
     plt.show()
 
-def overlay_point_cloud_on_image(image, point_cloud, selected_points, camera_matrix, rvec, tvec, selected_points_only=False):
-    if selected_points_only:
-        point_cloud = selected_points
-
+def overlay_point_cloud_on_image(image, point_cloud, selected_points, camera_matrix, rvec, tvec):
     if point_cloud.ndim == 3:
         point_cloud = point_cloud.reshape(-1, 3)
 
@@ -127,22 +124,16 @@ def overlay_point_cloud_on_image(image, point_cloud, selected_points, camera_mat
     
     return image_copy
 
-def test_transformation(lidar_points, transformation_matrix):
-    ones = np.ones((lidar_points.shape[0], 1))
-    lidar_points_homogeneous = np.hstack([lidar_points, ones])
-    transformed_points = (transformation_matrix @ lidar_points_homogeneous.T).T
-    
-    return transformed_points[:, :3]
 
 def main():
     CAMERA_INTRINSIC_MATRIX_FILE = 'camera/dev/calibration/calib_img/camera_intrinsic_matrix.txt'
     camera_matrix = np.loadtxt(CAMERA_INTRINSIC_MATRIX_FILE)
     print("Camera Matrix:\n", camera_matrix)
 
-    lidar_data = np.load("dev/calibration/calib_img_temp_20240801-155919/lidar_4.npy", allow_pickle=True)
+    lidar_data = np.load("dev/calibration/calib_img_temp_20240829-190725/lidar_4.npy", allow_pickle=True)
     print("LiDAR Data Shape:", lidar_data.shape)
 
-    image_path = 'dev/calibration/calib_img_temp_20240801-155919/image_4.jpg'
+    image_path = 'dev/calibration/calib_img_temp_20240829-190725/image_4.jpg'
     image = cv2.imread(image_path)
 
     if image is None:
@@ -161,16 +152,12 @@ def main():
         print("Error: The number of detected corners in the camera image and the LiDAR point cloud do not match.")
         return
 
-    camera_dist = camera_corners[0]
-    lidar_dist = lidar_corners[0][1] - lidar_corners[1][1]
-
     transformation_matrix = calculate_transformation(camera_corners, lidar_corners, camera_matrix, None)
-    transformed_point_cloud = test_transformation(lidar_data.reshape(-1, 3), transformation_matrix)
-    visualize_point_cloud(transformed_point_cloud, "Transformed LiDAR Points")
+    print(f"Transformation Matrix: \n {transformation_matrix}")
 
     rvec, _ = cv2.Rodrigues(transformation_matrix[:3, :3])
     tvec = transformation_matrix[:3, 3]
-    overlayed_image = overlay_point_cloud_on_image(image, lidar_data, lidar_corners, camera_matrix, rvec, tvec, selected_points_only=False)
+    overlayed_image = overlay_point_cloud_on_image(image, lidar_data, lidar_corners, camera_matrix, rvec, tvec)
     cv2.imshow("Overlayed Image", overlayed_image)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
