@@ -20,10 +20,10 @@ if not IMG_FILE_PATH.exists():
 
 rclpy.init(args=None)
 
-lidar = Lidar('lidar', decay_rate=0.2)
+lidar = Lidar('lidar_3WEDH7600104801', decay_rate=0.2)
 lidar_node = LidarNode([lidar])
 
-camera = Camera(bus_addr=[1,7], camera_type='port')
+camera = Camera(bus_addr=[1,7], camera_type='starboard')
 camera.warmup()
 
 cv2.namedWindow("Camera", cv2.WINDOW_NORMAL) 

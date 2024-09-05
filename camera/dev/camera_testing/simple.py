@@ -3,8 +3,8 @@ import cv2
 import time
 
 # Create a camera object
-camera = Camera(bus_addr=[1,7], camera_type='port') #port
-camera2 = Camera(bus_addr=[1,8], camera_type='starboard') #starboard
+camera = Camera(bus_addr=[1,7], camera_type='starboard') #starboard
+camera2 = Camera(bus_addr=[1,8], camera_type='port') #port
 
 
 camera.warmup()
@@ -13,11 +13,11 @@ camera2.warmup()
 camera.start()
 camera2.start()
 
-cv2.namedWindow("Yolo", cv2.WINDOW_NORMAL) 
-cv2.resizeWindow("Yolo", 640, 480)
+cv2.namedWindow("port", cv2.WINDOW_NORMAL) 
+cv2.resizeWindow("port", 640, 480)
 
-cv2.namedWindow("Yolo2", cv2.WINDOW_NORMAL) 
-cv2.resizeWindow("Yolo2", 640, 480)
+cv2.namedWindow("starboard", cv2.WINDOW_NORMAL) 
+cv2.resizeWindow("starboard", 640, 480)
 
 size = (1919,972)
 
@@ -39,8 +39,8 @@ while camera.stream:
 #    video1.write(frame)
 #    video2.write(frame2)
 
-    cv2.imshow("Yolo", frame)
-    cv2.imshow("Yolo2", frame2)
+    cv2.imshow("starboard", frame)
+    cv2.imshow("port", frame2)
     if cv2.waitKey(4) & 0xFF == ord('q'):
         break
 
