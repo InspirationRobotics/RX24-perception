@@ -10,8 +10,8 @@ IMG_FILE_PATH = CURRENT_FILE_PATH / "sample_images"
 if not IMG_FILE_PATH.exists():
     IMG_FILE_PATH.mkdir()
 
-port = Camera(bus_addr=[1,7], camera_type='port') #port
-starboard = Camera(bus_addr=[1,8], camera_type='starboard') #starboard
+port = Camera(bus_addr=[1,8], camera_type='port') #port
+starboard = Camera(bus_addr=[1,7], camera_type='starboard') #starboard
 
 port.warmup()
 starboard.warmup()

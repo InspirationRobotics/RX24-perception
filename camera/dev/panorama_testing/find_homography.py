@@ -3,10 +3,10 @@ import numpy as np
 from pathlib import Path
 
 
-def read_images(image_folder, index):
+def read_images(image_folder : Path, index : int):
     # Read images from the folder
-    image1 = cv2.imread(image_folder / f"port_{index}.jpg")
-    image2 = cv2.imread(image_folder / f"starboard_{index}.jpg")
+    image1 = cv2.imread(str(image_folder / f"port_{index}.jpg"))
+    image2 = cv2.imread(str(image_folder / f"starboard_{index}.jpg"))
     return image1, image2
 
 def find_matches(image1, image2):
@@ -37,7 +37,7 @@ def find_matches(image1, image2):
     cv2.destroyAllWindows()
     return keypoints1, keypoints2, good_matches
 
-def find_homography(keypoints1, keypoints2, good_matches):
+def find_homography_matrix(keypoints1, keypoints2, good_matches):
     # Extract matched keypoints
     src_pts = np.float32([keypoints1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([keypoints2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
@@ -66,24 +66,31 @@ def stitch_images(image1, image2, homography):
             if warped_image2[j, i].any() != 0:  # If there is data from the second image
                 composite_image[j, i] = warped_image2[j, i]  # Replace with the warped image
 
-        return composite_image
+    return composite_image
 
 
-def main():
+def find_homography(path : Path | str, index : int):
     # Read images
-    image_folder = Path("sample_images")
-    image1, image2 = read_images(image_folder, 1)
+    image_folder = Path(path)
+    image1, image2 = read_images(image_folder, index)
 
     # Find matches
     keypoints1, keypoints2, good_matches = find_matches(image1, image2)
 
     # Find homography
-    homography = find_homography(keypoints1, keypoints2, good_matches)
+    homography = find_homography_matrix(keypoints1, keypoints2, good_matches)
 
     # Stitch images
     composite_image = stitch_images(image1, image2, homography)
 
-    # Display the composite image
     cv2.imshow("Composite Image", composite_image)
     cv2.waitKey(0)
+
+def main():
+    image_folder = Path("sample_images")
+    # for i in range(1, 6):
+    find_homography(image_folder, 1)
     cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()
