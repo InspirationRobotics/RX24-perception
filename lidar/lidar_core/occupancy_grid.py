@@ -3,7 +3,7 @@ import numpy as np
 
 '''
 A class which builds an occupancy grid as the robot moves through the environment.
-It relies on an origin lat/lon which is centered at grid_size/2, grid_size/2.
+It relies on an origin lat/lon which is centered at (0,0).
 
 To update the grid, it takes in the current lat/lon, current heading, and the lidar data.
 
@@ -12,8 +12,7 @@ This makes it essentially a 30m x 30m x 1.5m box positioned directly in front of
 The 1.5m height is to remove points on the ground and above the robot. The 30m x 30m box is to remove points that are too far away from the robot.
 The 1.5m is then also condensed into one plane by overlaying the points on the x-y plane.
 
-The grid is a 2D numpy array where each cell represents a 0.5m x 0.5m square in the environment.
-The grid starts with a size of 100 x 100 cells, centered at the origin. (50m x 50m)
+The grid is a dictionary where the key is the x,y coordinate and the value is the occupancy value.
 As the robot moves, the grid can expand in any direction.
 
 The grid is initialized with -1 in each cell to represent unknown occupancy.
@@ -33,17 +32,64 @@ class Grid:
         self.max_value = max_value
         self.default_value = default_value
 
-    def __getitem__(self, key):
-        return self.grid.get(key, self.default_value)
+        self.x_range = [0,0] # [min, max]
+        self.y_range = [0,0] # [min, max]
 
-    def __setitem__(self, key, value):
+    def increment(self, x_list, y_list, value):
+        if len(x_list) != len(y_list):
+            raise ValueError('Mismatched x y indices.')
+        for i in range(len(x_list)):
+            self[(x_list[i], y_list[i])] += value
+
+    def visualize(self):
+        '''
+        Visualizes the grid by returning a frame like representation using Numpy.
+        The origin is at the center of the grid.
+        The whiter the cell, the higher the occupancy value.
+        Using the x_range and y_range, we can determine the size of the grid.
+        We can also add a buffer of 30 pixels around the grid to make it easier to see.
+        '''
+        x_size = self.x_range[1] - self.x_range[0] + 1 + 60
+        y_size = self.y_range[1] - self.y_range[0] + 1 + 60
+        frame = np.zeros((y_size, x_size))
+        for coord in self.grid:
+            x = coord[0] - self.x_range[0] + 30
+            y = y_size - (coord[1] - self.y_range[0] + 30)
+            frame[y, x] = self.grid[coord] / self.max_value
+        
+        return np.array(frame * 255, dtype=np.uint8)
+
+    def _handle_key(self, key, func, *args):
+        result = []
         if type(key) != tuple or len(key) != 2:
             raise ValueError('Key must be a tuple of length 2.')
+        if type(key[0]) == list and type(key[1]) == list:
+            if len(key[0]) != len(key[1]):
+                raise ValueError('Mismatched x y indices.')
+            for i in range(len(key[0])):
+                res = func((key[0][i], key[1][i]), *args)
+                if res != None:
+                    result.append(res)
+            return result
+        result = func(key, *args)
+        return result
+
+    def _adjust_ranges(self, key):
+        self.x_range[0] = min(self.x_range[0], key[0])
+        self.x_range[1] = max(self.x_range[1], key[0])
+        self.y_range[0] = min(self.y_range[0], key[1])
+        self.y_range[1] = max(self.y_range[1], key[1])
+
+    def __getitem__(self, key):
+        return self._handle_key(key, self.grid.get, self.default_value)
+
+    def __setitem__(self, key, value):
+        self._adjust_ranges(key)
         value = min(value, self.max_value)
-        self.grid.__setitem__(key, value)
+        self._handle_key(key, self.grid.__setitem__, value)
 
     def __delitem__(self, key):
-        self.grid.__delitem__(key)
+        self._handle_key(key, self.grid.__delitem__)
 
     def __len__(self):
         return len(self.grid)
@@ -111,11 +157,11 @@ class OccupancyGrid:
         This grid will later be added onto the global grid at the robot's current position and heading.
         '''
         local_grid_size = int(30 / self.cell_size)
-        local_grid = np.full((local_grid_size, local_grid_size), -1)
+        local_grid = Grid()
         center = (local_grid_size // 2, 0) # The robot is horizontally centered in the local grid (assumes 0,0 is bottom left)
         clean_data = self._clean_lidar_data(lidar_data)
         # Overlay the points onto the local grid.
-        # For the lidar data, x is forward, y is right. So we flip y and x.
+        # For the lidar data, x is forward, y is right, so we need to swap them.
         for point_cloud in clean_data:
             x_coords = point_cloud[:,1]
             y_coords = point_cloud[:,0]
@@ -124,13 +170,49 @@ class OccupancyGrid:
             mask = (x_indices >= 0) & (x_indices < local_grid_size) & (y_indices >= 0) & (y_indices < local_grid_size)
             x_indices = x_indices[mask]
             y_indices = y_indices[mask]
-            local_grid[x_indices, y_indices] = 1
+            local_grid.increment(x_indices, y_indices, 2)
 
         return local_grid
+    
+    def _orient_local_grid(self, local_grid, heading, offset):
+        '''
+        Orients the local grid to match the robot's heading and position.
+        The robot's heading is 0 when it is facing North.
+        The local grid is oriented with x as right and y as forward.
+        '''
+        theta = math.radians(heading)
+        rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+        oriented_grid = Grid()
+        for coord in local_grid:
+            x, y = np.dot(rotation_matrix, np.array(list(coord)))
+            x += offset[0]
+            y += offset[1]
+            oriented_grid[int(x), int(y)] = local_grid[coord]
+        return oriented_grid
 
     def update_grid(self, lat, lon, heading, lidar_data):
-        pass
+        '''
+        Updates the global grid with the current lidar data.
+        '''
+        offset = self._global_to_local(lat, lon)
+        local_grid = self._process_local_grid(lidar_data)
+        # Rotate + Translate the local grid to match the robot's heading + Position.
+        oriented_grid = self._orient_local_grid(local_grid, heading, offset)
+        # Add the oriented grid to the global grid.
+        self.grid += oriented_grid
 
+    def get_grid(self):
+        return self.grid
+    
+    def get_global_grid(self):
+        global_grid = Grid()
+        for coord in self.grid:
+            lat, lon = self._local_to_global(coord[0], coord[1])
+            global_grid[(lat, lon)] = self.grid[coord]
+        return global_grid
+    
+    def visualize(self):
+        return self.grid.visualize()
 
 
 '''
@@ -172,14 +254,10 @@ def bearing(lat1, lon1, lat2, lon2) -> float:
 '''
 
 if __name__ == '__main__':
-    # og = OccupancyGrid(37.7749, -122.4194)
-    # print(og._global_to_local(37.7749, -122.4194))
-    # lat1, lon1 = og._local_to_global(50, 50)
-    # lat2, lon2 = og._local_to_global(50, 51)
-    # print(haversine(lat1, lon1, lat2, lon2))
-    # print(bearing(lat1, lon1, lat2, lon2))
-    grid = Grid()
-    grid[0,0] = 10
-    grid[0,0] += 200
-    print(grid[0,0])
+    og = OccupancyGrid(37.7749, -122.4194)
+    print(og._global_to_local(37.7749, -122.4194))
+    lat1, lon1 = og._local_to_global(50, 50)
+    lat2, lon2 = og._local_to_global(50, 51)
+    print(haversine(lat1, lon1, lat2, lon2))
+    print(bearing(lat1, lon1, lat2, lon2))
     pass
