@@ -27,9 +27,10 @@ class Grid:
     To solve this, we can use a dictionary where the key is the x,y coordinate and the value is the occupancy value.
     We can use dunder methods to make it act like a 2D array.
     '''
-    def __init__(self, max_value=100, default_value=-1):
+    def __init__(self, max_value=100, min_value=0, default_value=-1):
         self.grid = {}
         self.max_value = max_value
+        self.min_value = min_value
         self.default_value = default_value
 
         self.x_range = [0,0] # [min, max]
@@ -44,10 +45,12 @@ class Grid:
     def visualize(self):
         '''
         Visualizes the grid by returning a frame like representation using Numpy.
+        For the sake of visualization, x is forward and y is right.
         The origin is at the center of the grid.
         The whiter the cell, the higher the occupancy value.
         Using the x_range and y_range, we can determine the size of the grid.
         We can also add a buffer of 30 pixels around the grid to make it easier to see.
+        #TODO: SOMETHING IS WRONG HERE, IT GETS WEIRDLY DISTORTED
         '''
         x_size = self.x_range[1] - self.x_range[0] + 1 + 60
         y_size = self.y_range[1] - self.y_range[0] + 1 + 60
@@ -85,7 +88,7 @@ class Grid:
 
     def __setitem__(self, key, value):
         self._adjust_ranges(key)
-        value = min(value, self.max_value)
+        value = max(min(value, self.max_value), self.min_value)
         self._handle_key(key, self.grid.__setitem__, value)
 
     def __delitem__(self, key):
@@ -157,13 +160,13 @@ class OccupancyGrid:
         This grid will later be added onto the global grid at the robot's current position and heading.
         '''
         local_grid_size = int(30 / self.cell_size)
-        local_grid = Grid()
+        local_grid = Grid(min_value=-10)
         center = (local_grid_size // 2, 0) # The robot is horizontally centered in the local grid (assumes 0,0 is bottom left)
         clean_data = self._clean_lidar_data(lidar_data)
         # Overlay the points onto the local grid.
         # For the lidar data, x is forward, y is right, so we need to swap them.
         for point_cloud in clean_data:
-            x_coords = point_cloud[:,1]
+            x_coords = -point_cloud[:,1]
             y_coords = point_cloud[:,0]
             x_indices = np.floor(x_coords / self.cell_size + center[0]).astype(int)
             y_indices = np.floor(y_coords / self.cell_size + center[1]).astype(int)
@@ -171,6 +174,14 @@ class OccupancyGrid:
             x_indices = x_indices[mask]
             y_indices = y_indices[mask]
             local_grid.increment(x_indices, y_indices, 2)
+
+        # For all cells that are not incremented, we will decrement them.
+        # We can use Numpy mask for this as well.
+        mask = np.ones((local_grid_size, local_grid_size), dtype=bool)
+        mask[x_indices, y_indices] = False
+        x_indices = np.where(mask)[0]
+        y_indices = np.where(mask)[1]
+        local_grid.increment(x_indices, y_indices, -10)
 
         return local_grid
     
