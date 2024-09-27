@@ -44,32 +44,42 @@ class Grid:
         for i in range(len(x_list)):
             self[(x_list[i], y_list[i])] += value
 
-    def visualize(self):
+    def visualize(self, opencv = True, show = True):
         '''
         Visualizes the grid by returning a frame like representation using Numpy.
         The whiter the cell, the higher the occupancy value.
         '''
-        # Extract grid keys (x, y coordinates)
-        x_coords = []
-        y_coords = []
+        if not opencv and show:
+            x_coords = []
+            y_coords = []
+            for (x, y) in self.grid.keys():
+                if self.grid[(x, y)] < 1:
+                    continue
+                x_coords.append(x)
+                y_coords.append(y)
+            plt.figure(figsize=(8, 8))  # Adjust figure size if needed
+            plt.scatter(x_coords, y_coords, color='black', marker='o')
+            plt.grid(True)
+            plt.gca().set_aspect('equal', adjustable='box')
+            plt.show()
 
-        for (x, y) in self.grid.keys():
-            if self.grid[(x, y)] < 1:
-                continue
-            x_coords.append(x)
-            y_coords.append(y)
+        if opencv:
+            x_size = self.x_range[1] - self.x_range[0] + 1 + 60
+            y_size = self.y_range[1] - self.y_range[0] + 1 + 60
+            frame = np.zeros((y_size, x_size))
+            for coord in self.grid:
+                x = coord[0] - self.x_range[0] + 30
+                y = y_size - (coord[1] - self.y_range[0] + 30)
+                frame[y, x] = self.grid[coord] / self.max_value
 
-        # Create scatter plot
-        plt.figure(figsize=(8, 8))  # Adjust figure size if needed
-        plt.scatter(x_coords, y_coords, color='black', marker='o')
-
-        # Optionally, add grid lines and set equal aspect ratio
-        plt.grid(True)
-        plt.gca().set_aspect('equal', adjustable='box')
-
-        # Show plot
-        plt.show()
-        pass
+            frame = np.array(frame * 255, dtype=np.uint8)
+            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+            if show:
+                show_frame = cv2.resize(frame, (800,800), interpolation=cv2.INTER_NEAREST)
+                cv2.imshow("Occupancy Grid", show_frame)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+            return frame
 
     def _handle_key(self, key, func, *args):
         result = []
@@ -164,7 +174,9 @@ class OccupancyGrid:
         '''
         clean_data = []
         for point_cloud in lidar_data:
-            clean_data.append(point_cloud[(point_cloud[:,2] < 0) & (point_cloud[:,2] > -1.5) & (point_cloud[:,0] < 30) & (point_cloud[:,1] < 30) & (point_cloud[:,1] > -30)])
+            clean_data.append(point_cloud[(point_cloud[:,2] < 0) & (point_cloud[:,2] > -1.5) # Z axis
+                                          & (point_cloud[:,1] < 15) & (point_cloud[:,1] > -15) # Y axis
+                                          & (point_cloud[:,0] < 30)]) # X axis
         return clean_data
 
     def _process_local_grid(self, lidar_data):
@@ -173,33 +185,28 @@ class OccupancyGrid:
         The robot is horizontally centered in the local grid, and placed at the bottom of the grid.
         This grid will later be added onto the global grid at the robot's current position and heading.
         '''
-        local_grid_size = int(30 / self.cell_size)
         local_grid = Grid(min_value=-10)
-        center = (local_grid_size // 2, 0) # The robot is horizontally centered in the local grid (assumes 0,0 is bottom left)
         clean_data = self._clean_lidar_data(lidar_data)
         # Overlay the points onto the local grid.
-        # For the lidar data, x is forward, y is right, so we need to swap them.
+        # For the lidar data, +x is forward, +y is left, so we need to swap them and invert y.
         for point_cloud in clean_data:
             x_coords = -point_cloud[:,1]
             y_coords = point_cloud[:,0]
-            x_indices = np.floor(x_coords / self.cell_size + center[0]).astype(int)
-            y_indices = np.floor(y_coords / self.cell_size + center[1]).astype(int)
-            mask = (x_indices >= 0) & (x_indices < local_grid_size) & (y_indices >= 0) & (y_indices < local_grid_size)
-            x_indices = x_indices[mask]
-            y_indices = y_indices[mask]
-            local_grid.increment(x_indices, y_indices, 2)
+            x_indices = np.floor(x_coords / self.cell_size).astype(int)
+            y_indices = np.floor(y_coords / self.cell_size).astype(int)
+            local_grid.increment(x_indices, y_indices, 5)
 
-        # For all cells that are not incremented, we will decrement them.
-        # We can use Numpy mask for this as well.
-        mask = np.ones((local_grid_size, local_grid_size), dtype=bool)
-        mask[x_indices, y_indices] = False
-        x_indices = np.where(mask)[0]
-        y_indices = np.where(mask)[1]
-        local_grid.increment(x_indices, y_indices, -10)
+        # Decrement all the values that were not detected (make more efficient?)
+        # x can go from 0m -> 30m, y can go from -15m -> 15m
+        local_grid_size = int(30 // self.cell_size)
+        for x in range(0, local_grid_size):
+            for y in range(-local_grid_size // 2, local_grid_size // 2):
+                if (x, y) not in local_grid:
+                    local_grid[(x, y)] = -10
 
         return local_grid
     
-    def _orient_local_grid(self, local_grid, heading, offset):
+    def _orient_local_grid(self, local_grid : Grid, heading, offset):
         '''
         Orients the local grid to match the robot's heading and position.
         The robot's heading is 0 when it is facing North.
