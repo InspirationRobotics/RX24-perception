@@ -12,8 +12,6 @@ def test_occ():
     og = OccupancyGrid(37.7749, -122.4194, cell_size=0.2)
     og.update_grid(37.7749, -122.4194, 0, lidar_data)
     og.visualize()
-    og.update_grid(37.7749, -122.4194, 2, lidar_data2)
-    og.visualize()
 
 if __name__ == "__main__":
     test_occ()

@@ -67,13 +67,19 @@ class Grid:
             x_size = self.x_range[1] - self.x_range[0] + 1 + 60
             y_size = self.y_range[1] - self.y_range[0] + 1 + 60
             frame = np.zeros((y_size, x_size))
-            for coord in self.grid:
+
+            def translate(coord):
                 x = coord[0] - self.x_range[0] + 30
                 y = y_size - (coord[1] - self.y_range[0] + 30)
+                return x, y
+
+            for coord in self.grid:
+                x, y = translate(coord)
                 frame[y, x] = self.grid[coord] / self.max_value
 
             frame = np.array(frame * 255, dtype=np.uint8)
             frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+            frame = cv2.circle(frame, translate((0, 0)), 3, (0, 255, 0), -1)
             if show:
                 show_frame = cv2.resize(frame, (800,800), interpolation=cv2.INTER_NEAREST)
                 cv2.imshow("Occupancy Grid", show_frame)
@@ -152,6 +158,8 @@ class OccupancyGrid:
         self.cell_size = cell_size
         self.grid = Grid()
 
+        self.lidar_offset = 0.5 # The lidar is mounted 0.5m in front of the GPS.
+
     def _global_to_local(self, lat, lon):
         '''
         This assumes that the origin is at the center of the grid. (0,0)
@@ -191,7 +199,7 @@ class OccupancyGrid:
         # For the lidar data, +x is forward, +y is left, so we need to swap them and invert y.
         for point_cloud in clean_data:
             x_coords = -point_cloud[:,1]
-            y_coords = point_cloud[:,0]
+            y_coords = point_cloud[:,0] + self.lidar_offset
             x_indices = np.floor(x_coords / self.cell_size).astype(int)
             y_indices = np.floor(y_coords / self.cell_size).astype(int)
             local_grid.increment(x_indices, y_indices, 5)
