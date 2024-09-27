@@ -1,5 +1,7 @@
+import cv2
 import math
 import numpy as np
+import matplotlib.pyplot as plt
 
 '''
 A class which builds an occupancy grid as the robot moves through the environment.
@@ -45,22 +47,29 @@ class Grid:
     def visualize(self):
         '''
         Visualizes the grid by returning a frame like representation using Numpy.
-        For the sake of visualization, x is forward and y is right.
-        The origin is at the center of the grid.
         The whiter the cell, the higher the occupancy value.
-        Using the x_range and y_range, we can determine the size of the grid.
-        We can also add a buffer of 30 pixels around the grid to make it easier to see.
-        #TODO: SOMETHING IS WRONG HERE, IT GETS WEIRDLY DISTORTED
         '''
-        x_size = self.x_range[1] - self.x_range[0] + 1 + 60
-        y_size = self.y_range[1] - self.y_range[0] + 1 + 60
-        frame = np.zeros((y_size, x_size))
-        for coord in self.grid:
-            x = coord[0] - self.x_range[0] + 30
-            y = y_size - (coord[1] - self.y_range[0] + 30)
-            frame[y, x] = self.grid[coord] / self.max_value
-        
-        return np.array(frame * 255, dtype=np.uint8)
+        # Extract grid keys (x, y coordinates)
+        x_coords = []
+        y_coords = []
+
+        for (x, y) in self.grid.keys():
+            if self.grid[(x, y)] < 1:
+                continue
+            x_coords.append(x)
+            y_coords.append(y)
+
+        # Create scatter plot
+        plt.figure(figsize=(8, 8))  # Adjust figure size if needed
+        plt.scatter(x_coords, y_coords, color='black', marker='o')
+
+        # Optionally, add grid lines and set equal aspect ratio
+        plt.grid(True)
+        plt.gca().set_aspect('equal', adjustable='box')
+
+        # Show plot
+        plt.show()
+        pass
 
     def _handle_key(self, key, func, *args):
         result = []
@@ -107,6 +116,11 @@ class Grid:
         for key in other.grid:
             new_grid[key] += other.grid[key]
         return new_grid
+    
+    def __iadd__(self, other):
+        for key in other.grid:
+            self[key] += other.grid[key]
+        return self
 
     def __eq__(self, other):
         return self.grid == other.grid
@@ -221,10 +235,9 @@ class OccupancyGrid:
             lat, lon = self._local_to_global(coord[0], coord[1])
             global_grid[(lat, lon)] = self.grid[coord]
         return global_grid
-    
-    def visualize(self):
-        return self.grid.visualize()
 
+    def visualize(self):
+        self.grid.visualize()
 
 '''
 Just for testing

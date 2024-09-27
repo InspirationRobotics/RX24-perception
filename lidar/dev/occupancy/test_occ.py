@@ -19,10 +19,10 @@ def visualize(OG):
 def test_occ():
     og = OccupancyGrid(37.7749, -122.4194, cell_size=0.2)
     og.update_grid(37.7749, -122.4194, 0, lidar_data)
-    visualize(og)
-    og.update_grid(37.7749, -122.4194, 0, lidar_data2)
-    visualize(og)
-    
+    og.visualize()
+    og.update_grid(37.7749, -122.4194, 90, lidar_data)
+    og.visualize()
 
 if __name__ == "__main__":
     test_occ()
+    # test_vis()
