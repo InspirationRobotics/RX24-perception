@@ -65,7 +65,7 @@ class Lidar:
         self.process_lidar(point_cloud)
         # Call the external callback function
         if self.callback is not None:
-            self.callback(self.get_points())
+            self.callback(self.get_points_np())
 
     def imu_callback(self, imu_msg : Imu):
         self.angular_velocity = np.array([imu_msg.angular_velocity.x, imu_msg.angular_velocity.y, imu_msg.angular_velocity.z])

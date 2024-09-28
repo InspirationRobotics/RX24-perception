@@ -1,55 +1,78 @@
 import cv2
 import time
-import random
-import numpy as np
-from lidar_core import OccupancyGrid
+import rclpy
+from threading import Lock
 
+from lidar_core import Lidar, LidarNode, OccupancyGrid
 
-SAMPLE_LIDAR_DATA = "/home/eesh/RX24/RX24-perception/dev/calibration/calib_img_temp_20240910-121022/lidar_2.npy"
-lidar_data = np.load(SAMPLE_LIDAR_DATA, allow_pickle=True)
-SAMPLE_LIDAR_DATA2 = "/home/eesh/RX24/RX24-perception/dev/calibration/calib_img_temp_20240910-121022/lidar_3.npy"
-lidar_data2 = np.load(SAMPLE_LIDAR_DATA2, allow_pickle=True)
+from comms_core import Server, Logger
+from comms_core import CustomSocketMessage as csm
 
-def test_occ():
-    og = OccupancyGrid(37.7749, -122.4194, cell_size=0.2)
-    starttime = time.time()
-    og.update_grid(37.7749, -122.4194, 0, lidar_data)
-    print("Time taken for update_grid: ", time.time() - starttime)
-    og.visualize(show=True)
-    starttime = time.time()
-    og.update_grid(37.7749, -122.4194, 90, lidar_data)
-    print("Time taken for update_grid: ", time.time() - starttime)
-    og.visualize(show=True)
+class TestOccupancy(Logger):
 
-def test_live_occ():
-    cv2.namedWindow("Occupancy Grid", cv2.WINDOW_NORMAL)
-    og = OccupancyGrid(37.7749, -122.4194, cell_size=0.2)
-    prev_degree = 0
-    prev_lat = 37.7749
-    prev_lon = -122.4194
-    while True:
-        #random degree within 3 degrees of previous degree
-        degree = random.randint(prev_degree-10, prev_degree+10)
-        # random lat within 0.0001 of previous lat
-        lat = prev_lat + random.uniform(-0.000001, 0.000001)
-        # random lon within 0.0001 of previous lon
-        lon = prev_lon + random.uniform(-0.000001, 0.000001)
-        # random lidar data (either 1 or 2)
-        lidar = random.choice([lidar_data, lidar_data2])
-        starttime = time.time()
-        og.update_grid(lat, lon, degree, lidar)
-        print("Time taken for update_grid: ", time.time() - starttime)
-        frame = og.visualize(show=False)
-        frame = cv2.resize(frame, (800, 800), interpolation=cv2.INTER_NEAREST)
-        cv2.imshow("Occupancy Grid", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+    def __init__(self):
+        rclpy.init(args=None)
+
+        self.server = Server(default_callback = self.server_callback)
+        self.lidar = Lidar('combine_livox', decay_rate=0.2)
+        self.lidar.add_callback(self.lidar_callback)
+        self.lidar_node = LidarNode([self.lidar])
+
+        self.gps_lock = Lock()
+        self.lidar_lock = Lock()
+        self.pos = [None, None, None] # lat, lon, heading
+        self.lidar_data = None
+
+        self.server.start()
+        self.lidar_node.start()
+
+    def server_callback(self, data, addr):
+        data = csm.decode(data)
+        lat, lon = data.get("current_position", [None, None])
+        heading = data.get("current_heading", None)
+        with self.gps_lock:
+            self.pos = [lat, lon, heading]
+
+    def lidar_callback(self, data):
+        with self.lidar_lock:
+            self.lidar_data = data
+
+    def run(self):
+        # Wait for data to be received
+        while True:
+            time.sleep(0.1)
+            with self.gps_lock:
+                if None in self.pos:
+                    continue
+            with self.lidar_lock:
+                if self.lidar_data is None:
+                    continue
             break
-        prev_degree = degree
-        prev_lat = lat
-        prev_lon = lon
-        # time.sleep(0.1)
-    cv2.destroyAllWindows()
-    
+        og = OccupancyGrid(self.pos[0], self.pos[1], cell_size=0.2)
+        frame = None
+        while True:
+            try:
+                with self.lidar_lock:
+                    lidar_data = self.lidar_data
+                with self.gps_lock:
+                    lat, lon, heading = self.pos
+                og.update_grid(lat, lon, heading, lidar_data)
+                frame = og.visualize(show=False)
+                frame = cv2.resize(frame, (800, 800), interpolation=cv2.INTER_NEAREST)
+                cv2.imshow("Occupancy Grid", frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            except KeyboardInterrupt:
+                break
+        cv2.destroyAllWindows()
+        # Save the last frame
+        cv2.imwrite(f"last_frame_{int(time.time())}.jpg", frame)
+
+    def __del__(self):
+        self.server.stop()
+        self.lidar_node.stop()
+        rclpy.shutdown()
+
 if __name__ == "__main__":
-    # test_occ()
-    test_live_occ()
+    to = TestOccupancy()
+    to.run()
