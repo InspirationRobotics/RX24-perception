@@ -7,8 +7,8 @@ import time
 
 # Create a camera object
 # camera = Camera(video_path="/home/inspiration/RX24-perception/camera/dev/ML_testing/countdown.mp4")
-camera = Camera(bus_addr=(1,5))
-camera1 = Camera(bus_addr=(1,6))
+camera = Camera(bus_addr=(1,7), camera_type='port')
+camera1 = Camera(bus_addr=(1,8), camera_type='starboard')
 
 full_engine = '/home/inspiration/RX24-perception/camera/dev/ML_testing/yolov8n.engine'
 half_engine = '/home/inspiration/RX24-perception/camera/camera_core/models/yolov8n.engine'

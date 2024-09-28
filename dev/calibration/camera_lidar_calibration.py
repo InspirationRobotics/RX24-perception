@@ -1,39 +1,16 @@
 import cv2
 import numpy as np
-import open3d as o3d
 import matplotlib.pyplot as plt
-from utils import calculate_transformation, apply_transformation_to_point_cloud
-from undistort import Undistort
+from utils import calculate_transformation
 
-# Function to generate synthetic LiDAR data points
-def generate_filled_rectangle_lidar_data(width=2.0, height=1.0, num_points_per_unit_area=25, noise_level=0.01):
-    x = np.linspace(-width / 2, width / 2, int(width * num_points_per_unit_area))
-    y = np.linspace(-height / 2, height / 2, int(height * num_points_per_unit_area))
-    xv, yv = np.meshgrid(x, y)
-    points = np.vstack((xv.flatten(), yv.flatten(), np.zeros_like(xv.flatten()))).T
-
-    # Add noise to the points to simulate real-world data
-    noise = np.random.normal(0, noise_level, points.shape)
-    points += noise
-
-    return points
-
-def detect_rectangle_corners(point_cloud):
-    # Find the minimum and maximum coordinates in each dimension
-    min_x, min_y, min_z = np.min(point_cloud, axis=0)
-    max_x, max_y, max_z = np.max(point_cloud, axis=0)
-    
-    # Define the corners of the rectangle based on the min and max coordinates
-    corners = np.array([
-        [min_x, min_y, min_z],
-        [max_x, min_y, min_z],
-        [max_x, max_y, min_z],
-        [min_x, max_y, min_z]
-    ])
-    
-    return corners
-
-# Function to plot 3D points
+'''
+Function to plot 3D points
+Parameters:
+- points: numpy array of shape (N, 3), where N is the number of 3D points.
+- title: A string to set the plot title.
+- ax: A matplotlib 3D axis on which the points will be plotted.
+- color: A string representing the color of the points in the plot (default is 'b' for blue).
+'''
 def plot_points(points, title, ax, color='b'):
     ax.scatter(points[:, 0], points[:, 1], points[:, 2], color=color)
     ax.set_title(title)
@@ -41,7 +18,78 @@ def plot_points(points, title, ax, color='b'):
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
 
-def select_points(image, window_name='Select Points'):
+'''
+Function to select points in a point cloud
+Parameters: 
+- lidar_data: A numpy array representing the 3D LiDAR point cloud.
+Returns: 
+- selected_points: A numpy array of shape (N, 3) with user-selected 3D points from the LiDAR point cloud.
+'''
+def select_points_in_point_cloud(lidar_data):
+    selected_points = []
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    
+    ax.set_xlim(4, 10)
+    ax.set_ylim(-3, 3)
+    ax.set_zlim(-3, 0)
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    ax.set_title('Select Points in Point Cloud')
+    
+    for point_cloud in lidar_data:
+        pc = point_cloud[::5]  # Downsample the point cloud (grabs every 5th point)
+        ax.scatter(pc[:, 0], pc[:, 1], pc[:, 2], s=1)
+    
+    plt.ion()
+
+    current_point = [0, 0, 0]
+    selected_index = 0
+    current_point_plot = ax.scatter([current_point[0]], [current_point[1]], [current_point[2]], color='r', s=20)
+
+    # Function to handle keyboard events for point selection and movement
+    def on_key(event):
+        nonlocal current_point, selected_index, current_point_plot
+        if event.key == 'enter':
+            selected_points.append(current_point.copy())
+            selected_index += 1
+            print(f"Selected Point {selected_index}: {current_point}")
+        elif event.key == 'up':
+            current_point[2] += 0.05
+        elif event.key == 'down':
+            current_point[2] -= 0.05
+        elif event.key == 'left':
+            current_point[1] -= 0.05
+        elif event.key == 'right':
+            current_point[1] += 0.05
+        elif event.key == '.':
+            current_point[0] += 0.05
+        elif event.key == ',':
+            current_point[0] -= 0.05
+        
+        current_point_plot.remove()
+        current_point_plot = ax.scatter([current_point[0]], [current_point[1]], [current_point[2]], color='r', s=20)
+        plt.draw()
+
+    fig.canvas.mpl_connect('key_press_event', on_key)
+    plt.show(block=True)
+    plt.ioff()
+
+    return np.array(selected_points, dtype=np.float32)
+
+'''
+Function to select points in an image
+This function allows the user to interactively click on an image to select 2D points.
+These points are used to compute correspondences with 3D LiDAR points during calibration.
+Parameters:
+- image: A 2D numpy array representing the camera image.
+- window_name: A string representing the name of the window where the image is displayed (default is 'Select Points').
+Returns:
+- points: A numpy array of shape (N, 2) with user-selected 2D points from the image.
+'''
+def select_points_in_image(image, window_name='Select Points'):
     points = []
     
     def click_event(event, x, y, flags, param):
@@ -57,89 +105,121 @@ def select_points(image, window_name='Select Points'):
     
     return np.array(points, dtype=np.float32)
 
-def visualize_point_cloud(points, title="Point Cloud"):
-    point_cloud = o3d.geometry.PointCloud()
-    point_cloud.points = o3d.utility.Vector3dVector(points)
-    
-    vis = o3d.visualization.Visualizer()
-    vis.create_window(title)
-    vis.add_geometry(point_cloud)
-    vis.run()
-    vis.destroy_window()
+'''
+Function to overlay a point cloud onto a camera image
+This function projects 3D LiDAR points into 2D image space using a transformation matrix and overlays
+the projected points onto the original camera image. Points are color-coded based on their depth.
+Parameters:
+- image: A 2D numpy array representing the camera image.
+- point_cloud: A 3D numpy array representing the LiDAR point cloud (can be reshaped if needed).
+- selected_points: A numpy array of selected 3D points for alignment.
+- camera_matrix: Camera intrinsic matrix used to project the 3D points onto the 2D image.
+- rvec: Rotation vector from the transformation matrix.
+- tvec: Translation vector from the transformation matrix.
+Returns:
+- image_copy: A copy of the original image with the projected points overlaid.
+'''
+def overlay_point_cloud_on_image(image, point_cloud, selected_points, camera_matrix, rvec, tvec):
+    if point_cloud.ndim == 3:
+        point_cloud = point_cloud.reshape(-1, 3)
 
-def calculate_reprojection_error(camera_corners, lidar_corners, rvec, tvec, camera_matrix, dist_coeffs):
-    projected_points, _ = cv2.projectPoints(lidar_corners, rvec, tvec, camera_matrix, dist_coeffs)
-    projected_points = projected_points.reshape(-1, 2)
-    error = np.sqrt(np.mean(np.sum((camera_corners - projected_points) ** 2, axis=1))) # Euclidean Distance
-    return error
+    if point_cloud.dtype != np.float32:
+        point_cloud = point_cloud.astype(np.float32)
+
+    projected_points, _ = cv2.projectPoints(point_cloud, rvec, tvec, camera_matrix, None)
+
+    depths = point_cloud[:, 2]
+    norm_depths = cv2.normalize(depths, None, 0, 255, cv2.NORM_MINMAX)
+    colors = cv2.applyColorMap(norm_depths.astype(np.uint8), cv2.COLORMAP_JET)
+
+    image_copy = image.copy()
+    for point, color in zip(projected_points, colors):
+        x, y = int(point[0][0]), int(point[0][1])
+
+        if 0 <= x < image_copy.shape[1] and 0 <= y < image_copy.shape[0]:
+            color = tuple(map(int, color[0]))
+            cv2.circle(image_copy, (x, y), 5, color, -1)
+    
+    return image_copy
+
+def print_image_instructions():
+    instructions = """
+    ============ LiDAR and Camera Calibration Tool ============
+    Instructions for Image Point Selection:
+
+    - Select corresponding key points in the image. 
+    Remember the order that you select the points in.
+
+    - You should select an even number of points that is greater or equal to 4. 
+
+    - Click to select a point on the image
+    - Press 'q' to exit the point selection process.
+
+    ===========================================================
+    """
+    print(instructions)
+    
+def print_pc_instructions():
+    instructions = """
+    ============ LiDAR and Camera Calibration Tool ============
+    Instructions for Lidar Point Selection:
+
+    - Select corresponding key points in the point cloud. 
+    These selections should be in the same order that the points on the image were selected.
+
+    - Use the arrow keys to move the current point:
+    Up Arrow    : Increase Z-coordinate (move upward)
+    Down Arrow  : Decrease Z-coordinate (move downward)
+    Left Arrow  : Decrease Y-coordinate (move left)
+    Right Arrow : Increase Y-coordinate (move right)
+    ',' Key     : Decrease X-coordinate (move backward)
+    '.' Key     : Increase X-coordinate (move forward)
+
+    - Press Enter to select the current point and save it.
+    - Press 'q' to exit the point selection process.
+
+    ===========================================================
+    """
+    print(instructions)
+
+
 
 def main():
-    # File paths for camera intrinsic and distortion matrices
     CAMERA_INTRINSIC_MATRIX_FILE = 'camera/dev/calibration/calib_img/camera_intrinsic_matrix.txt'
-    CAMERA_DISTORTION_MATRIX_FILE = 'camera/dev/calibration/calib_img/camera_distortion_matrix.txt'
-
-    # Load camera intrinsic and distortion matrices from files
     camera_matrix = np.loadtxt(CAMERA_INTRINSIC_MATRIX_FILE)
-    dist_coeffs = np.loadtxt(CAMERA_DISTORTION_MATRIX_FILE)
-    
-    # Initialize undistortion object with camera parameters
-    undistorter = Undistort(camera_matrix, dist_coeffs, 1920, 1080)
-    
-    # Generate synthetic LiDAR data
-    synthetic_lidar_data = generate_filled_rectangle_lidar_data()
-    visualize_point_cloud(synthetic_lidar_data, "Original LiDAR Points")
-    
-    # Automatically detect corners in the LiDAR point cloud
-    lidar_corners = detect_rectangle_corners(synthetic_lidar_data)
-    
-    # Read and undistort an image using the camera parameters
-    image = cv2.imread('camera/dev/calibration/calib_img/image_7.jpg')
-    undistorted_image = undistorter.undistort(image)
 
-    # DEBUG STATEMENT
+    # Input LiDAR data in numpy file
+    lidar_data = np.load("dev/calibration/calib_img_temp_20240910-121022/lidar_6.npy", allow_pickle=True)
+
+    # Input corresponding image file
+    image_path = 'dev/calibration/calib_img_temp_20240910-121022/image_6.jpg'
+    image = cv2.imread(image_path)
+
     if image is None:
         print(f"Error: Unable to load image at {image_path}")
         return
-    
-    # Manually select key points in the camera image
-    print("Select corresponding key points in the camera image.")
-    camera_corners = select_points(undistorted_image)
-    
-    # DEBUG STATEMENTS
+
+    print_image_instructions()
+    camera_corners = select_points_in_image(image)
     print("Camera Corners:", camera_corners)
+
+    print_pc_instructions()
+    lidar_corners = select_points_in_point_cloud(lidar_data)
     print("LiDAR Corners:", lidar_corners)
-    print(f"Number of Camera Corners: {len(camera_corners)}")
-    print(f"Number of LiDAR Corners: {len(lidar_corners)}")
-    
+
     if len(camera_corners) != len(lidar_corners):
         print("Error: The number of detected corners in the camera image and the LiDAR point cloud do not match.")
         return
-    
-    # Calculate the transformation matrix between camera and LiDAR coordinates
-    transformation_matrix = calculate_transformation(camera_corners, lidar_corners, camera_matrix, dist_coeffs)
 
-    # Apply the transformation to the synthetic LiDAR data
-    transformed_point_cloud = apply_transformation_to_point_cloud(synthetic_lidar_data, transformation_matrix)
-    visualize_point_cloud(transformed_point_cloud, "Transformed LiDAR Points")
-
-    # Plot the original and transformed LiDAR points
-    fig = plt.figure()
-
-    # Plot original LiDAR points
-    ax = fig.add_subplot(121, projection='3d')
-    plot_points(synthetic_lidar_data, 'Original LiDAR Points', ax, color='b')
-    
-    # Plot transformed LiDAR points
-    ax = fig.add_subplot(122, projection='3d')
-    plot_points(transformed_point_cloud, 'Transformed LiDAR Points', ax, color='r')
-    plt.show()
-    
-    print("Transformation Matrix:\n", transformation_matrix)
+    transformation_matrix = calculate_transformation(camera_corners, lidar_corners, camera_matrix, None)
+    print(f"Transformation Matrix: \n {transformation_matrix}")
 
     rvec, _ = cv2.Rodrigues(transformation_matrix[:3, :3])
     tvec = transformation_matrix[:3, 3]
-    reprojection_error = calculate_reprojection_error(camera_corners, lidar_corners, rvec, tvec, camera_matrix, dist_coeffs)
-    print(f"Reprojection Error: {reprojection_error}")
+    overlayed_image = overlay_point_cloud_on_image(image, lidar_data, lidar_corners, camera_matrix, rvec, tvec)
+    cv2.imshow("Overlayed Image", overlayed_image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()

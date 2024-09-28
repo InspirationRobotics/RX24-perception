@@ -51,18 +51,21 @@ class Lidar:
         with self.buffer_lock:
             self.buffer.append(CustomPointCloud(point_cloud.header, points))
 
+        if len(self.buffer) > 5:
             current_time = self.buffer[-1].timestamp
             for i in range(len(self.buffer)):
                 if current_time - self.buffer[i].timestamp < self.decay_rate:
                     last_valid = i
                     break
+            if len(self.buffer) - last_valid < 5:
+                last_valid = len(self.buffer) - 5
             self.buffer = self.buffer[last_valid:]
 
     def lidar_callback(self, point_cloud : PointCloud2):
         self.process_lidar(point_cloud)
         # Call the external callback function
         if self.callback is not None:
-            self.callback(self.get_points())
+            self.callback(self.get_points_np())
 
     def imu_callback(self, imu_msg : Imu):
         self.angular_velocity = np.array([imu_msg.angular_velocity.x, imu_msg.angular_velocity.y, imu_msg.angular_velocity.z])
