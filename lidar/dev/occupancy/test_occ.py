@@ -11,10 +11,11 @@ from comms_core import CustomSocketMessage as csm
 class TestOccupancy(Logger):
 
     def __init__(self):
+        super().__init__('TestOccupancy')
         rclpy.init(args=None)
 
         self.server = Server(default_callback = self.server_callback)
-        self.lidar = Lidar('combine_livox', decay_rate=0.2)
+        self.lidar = Lidar('combined_lidar', decay_rate=0.2)
         self.lidar.add_callback(self.lidar_callback)
         self.lidar_node = LidarNode([self.lidar])
 
@@ -32,14 +33,17 @@ class TestOccupancy(Logger):
         heading = data.get("current_heading", None)
         with self.gps_lock:
             self.pos = [lat, lon, heading]
+        self.log("GPS data received")
 
     def lidar_callback(self, data):
         with self.lidar_lock:
             self.lidar_data = data
+        self.log("Lidar data received")
 
     def run(self):
         # Wait for data to be received
         while True:
+            self.log("Waiting for data...")
             time.sleep(0.1)
             with self.gps_lock:
                 if None in self.pos:
@@ -48,6 +52,7 @@ class TestOccupancy(Logger):
                 if self.lidar_data is None:
                     continue
             break
+        self.log("Data received. Starting visualization...")
         og = OccupancyGrid(self.pos[0], self.pos[1], cell_size=0.2)
         frame = None
         while True:
