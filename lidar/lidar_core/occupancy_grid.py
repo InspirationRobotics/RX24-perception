@@ -212,12 +212,12 @@ class OccupancyGrid:
         #TODO: This methods works, but since it populates ALL the coords within the grid, the rotation matrix is applied one at a time to all of them which slows it down a lot.
         # Decrement all the values that were not detected within 10m.
         # y can go from 0m -> 30m (cap at 10m for efficiency), x can go from -15m -> 15m
-        x_bound = int(15 // self.cell_size)
-        y_bound = int(10 // self.cell_size)
-        for x in range(-x_bound, x_bound):
-            for y in range(0 , y_bound):
-                if (x, y) not in local_grid:
-                    local_grid[(x, y)] = -10
+        # x_bound = int(15 // self.cell_size)
+        # y_bound = int(10 // self.cell_size)
+        # for x in range(-x_bound, x_bound):
+        #     for y in range(0 , y_bound):
+        #         if (x, y) not in local_grid:
+        #             local_grid[(x, y)] = -10
 
         return local_grid
     
@@ -229,8 +229,6 @@ class OccupancyGrid:
         0.03s 24018 points
         0.003s 2204 points
         '''
-        print("Local grid size: ", len(local_grid))
-        starttime = time.time()
         theta = math.radians(heading)
         rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
         coords = np.array(list(local_grid.grid.keys()))
@@ -244,7 +242,6 @@ class OccupancyGrid:
         oriented_grid = Grid()
         for i, (x, y) in enumerate(rotated_coords): # ~0.03s
             oriented_grid[x, y] = values[i]
-        print("Time taken for _orient_local_grid: ", time.time() - starttime)
         return oriented_grid
 
     def update_grid(self, lat, lon, heading, lidar_data):
@@ -252,7 +249,10 @@ class OccupancyGrid:
         Updates the global grid with the current lidar data.
         '''
         offset = self._global_to_local(lat, lon)
-        local_grid = self._process_local_grid(lidar_data)
+        start_time = time.time()
+        local_grid = self._process_local_grid(lidar_data) # REALLY SLOW
+        print(time.time()-start_time)
+        if len(local_grid) == 0: return
         # Rotate + Translate the local grid to match the robot's heading + Position.
         oriented_grid = self._orient_local_grid(local_grid, heading, offset)
         # Add the oriented grid to the global grid.

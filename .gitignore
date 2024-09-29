@@ -3,4 +3,6 @@
 *.egg-info/
 lidar/dev/bags/
 *.mp4
+*.avi
+*.jpg
 *.log
