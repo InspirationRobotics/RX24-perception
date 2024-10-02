@@ -2,9 +2,9 @@ import cv2
 from camera_core import Camera, Image
 
 camera_addrs = [
-    [1,8],
-    [1,9],
-    # [1,10],
+    [1,8], # port
+    [1,9], # center
+    [1,10], # right
 ]
 
 def init_cameras(addrs : list):

@@ -86,6 +86,9 @@ class Camera:
             self.model = model_object
 
     def switch_model(self, model_path : str | Path, model_type: str = "YOLO", *, half_precision: bool = False):
+        if self.model is None:
+            self.load_model(model_path, model_type, half_precision=half_precision)
+            return
         with self.model_lock:
             self.model.switch_model(model_path, model_type, half_precision=half_precision)
 
@@ -159,7 +162,7 @@ class Camera:
         self._info("Undistortion warmed up...")
         return warmup_frame
 
-    def get_latest_frame(self, *, undistort = False, with_cuda = False) -> Image:
+    def get_latest_frame(self, *, undistort = True, with_cuda = True) -> Image:
         with self.camera_lock:
             if not self.done_init:
                 return None
