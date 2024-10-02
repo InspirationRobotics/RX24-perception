@@ -5,3 +5,6 @@ Navigate into `camera` directory and run:
 
 Navigate into `lidar` directory and run:
 ```pip3 install -e .```
+
+Navigate into `perception` directory and run:
+```pip3 install -e .```
