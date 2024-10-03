@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 from typing import List, Tuple
 from threading import Thread, Lock
+from multiprocessing import Process, Lock as MP_Lock
 from camera_core.undistort import Undistort
 from camera_core.ml_model import ML_Model, Results
 from camera_core.find_camera import FindCamera
@@ -44,7 +45,7 @@ class Camera:
         self.results = []
         
         self.camera_lock = Lock()
-        self.model_lock = Lock()
+        self.model_lock = MP_Lock()
         
     def _error(self, message : str):
         print(f"{self.camera_name} Error: {message}")
@@ -112,7 +113,7 @@ class Camera:
             self._error("Model thread already running, skipping...")
             return
         self.run_model = True
-        self.model_thread = Thread(target=self._model_background_thread)
+        self.model_thread = Process(target=self._model_background_thread)
         self.model_thread.start()
         self._info("Model thread started")
 
