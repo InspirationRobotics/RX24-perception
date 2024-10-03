@@ -7,3 +7,9 @@ setup(
     author='Eesh Vij',
     packages=find_packages(include=['camera_core'])
 )
+
+'''
+Required packages:
+pyusb
+
+'''

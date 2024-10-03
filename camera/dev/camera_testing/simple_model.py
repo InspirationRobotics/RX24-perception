@@ -6,21 +6,23 @@ import cv2
 import time
 
 # Create a camera object
-# camera = Camera(video_path="/home/inspiration/RX24-perception/camera/dev/ML_testing/countdown.mp4")
-camera = Camera(bus_addr=(1,7), camera_type='port')
-camera1 = Camera(bus_addr=(1,8), camera_type='starboard')
+video_path = "/home/eesh/RX24/RX24-perception/camera/dev/ML_testing/car-detection.mp4"
+camera = Camera(video_path=video_path, fps=20)
+camera1 = Camera(video_path=video_path, fps=20)
+# camera = Camera(bus_addr=(1,7), camera_type='port')
+# camera1 = Camera(bus_addr=(1,8), camera_type='starboard')
 
-full_engine = '/home/inspiration/RX24-perception/camera/dev/ML_testing/yolov8n.engine'
-half_engine = '/home/inspiration/RX24-perception/camera/camera_core/models/yolov8n.engine'
-model = ML_Model(full_engine, "tensorrt")
-model1 = ML_Model(full_engine, "tensorrt")
+full_engine = '/home/eesh/RX24/RX24-perception/camera/camera_core/models/yolov8n.pt'
+# half_engine = '/home/inspiration/RX24-perception/camera/camera_core/models/yolov8n.engine'
+model = ML_Model(full_engine, "yolo")
+model1 = ML_Model(full_engine, "yolo")
 
 
 camera.load_model_object(model)
 camera1.load_model_object(model1)
 
-camera.warmup()
-camera1.warmup()
+# camera.warmup()
+# camera1.warmup()
 
 camera.start()
 camera1.start()
@@ -30,13 +32,13 @@ cv2.resizeWindow("Yolo", 1280, 720)
 cv2.namedWindow("Yolo2", cv2.WINDOW_NORMAL) 
 cv2.resizeWindow("Yolo2", 1280, 720)
 pre_results = None
-
+fps = 0
 while camera.stream:
 
     pre_time = time.time()
 
-    frame : Image = camera.get_latest_frame(undistort=True, with_cuda=True)
-    frame1 : Image = camera1.get_latest_frame(undistort=True, with_cuda=True)
+    frame : Image = camera.get_latest_frame(undistort=False, with_cuda=False)
+    frame1 : Image = camera1.get_latest_frame(undistort=False, with_cuda=False)
     if frame is None or frame1 is None:
         continue
  
@@ -50,7 +52,9 @@ while camera.stream:
 
     # Write FPS on the top left corner
     new_frame_time = time.time()
-    fps = 1 / (new_frame_time - pre_time)
+    new_fps = 1 / (new_frame_time - pre_time)
+    if new_fps < 60:
+        fps = new_fps
     cv2.putText(frame, f"FPS: {fps:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
     if frame is not None:

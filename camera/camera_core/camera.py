@@ -3,7 +3,7 @@ import numpy as np
 from pathlib import Path
 from typing import List, Tuple
 from threading import Thread, Lock
-from multiprocessing import Process, Lock as MP_Lock
+from multiprocessing import Process, Value
 from camera_core.undistort import Undistort
 from camera_core.ml_model import ML_Model, Results
 from camera_core.find_camera import FindCamera
@@ -45,7 +45,7 @@ class Camera:
         self.results = []
         
         self.camera_lock = Lock()
-        self.model_lock = MP_Lock()
+        self.model_lock = Lock()
         
     def _error(self, message : str):
         print(f"{self.camera_name} Error: {message}")
@@ -63,7 +63,7 @@ class Camera:
             self.camera_path = f'/dev/video{camera_id}'
     
     def _load_calibration(self, camera_type : str):
-        pre_path = Path('/home/inspiration/RX24-perception/camera/camera_core/config') # TODO Make this relative
+        pre_path = Path(__file__).parent.absolute() / "config"
         dist_calibration_path = pre_path / Path(f'{camera_type}/camera_distortion_matrix.txt')
         int_calibration_path = pre_path / Path(f'{camera_type}/camera_intrinsic_matrix.txt')
         self.undistort = Undistort(int_calibration_path, dist_calibration_path, self.resolution)
@@ -113,7 +113,7 @@ class Camera:
             self._error("Model thread already running, skipping...")
             return
         self.run_model = True
-        self.model_thread = Process(target=self._model_background_thread)
+        self.model_thread = Thread(target=self._model_background_thread)
         self.model_thread.start()
         self._info("Model thread started")
 
