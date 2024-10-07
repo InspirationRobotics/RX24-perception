@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 from typing import List, Tuple
 from threading import Thread, Lock
+from multiprocessing import Process, Value
 from camera_core.undistort import Undistort
 from camera_core.ml_model import ML_Model, Results
 from camera_core.find_camera import FindCamera
@@ -62,7 +63,7 @@ class Camera:
             self.camera_path = f'/dev/video{camera_id}'
     
     def _load_calibration(self, camera_type : str):
-        pre_path = Path('/home/inspiration/RX24-perception/camera/camera_core/config') # TODO Make this relative
+        pre_path = Path(__file__).parent.absolute() / "config"
         dist_calibration_path = pre_path / Path(f'{camera_type}/camera_distortion_matrix.txt')
         int_calibration_path = pre_path / Path(f'{camera_type}/camera_intrinsic_matrix.txt')
         self.undistort = Undistort(int_calibration_path, dist_calibration_path, self.resolution)
