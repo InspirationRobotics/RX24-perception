@@ -96,7 +96,6 @@ class Perception:
                 else:
                     print(f"Error: Camera index {i} is out of range.")
 
-
     def stop_stream(self):
         """
         Stop streaming from all cameras.
