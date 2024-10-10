@@ -1,4 +1,5 @@
 from camera_core import Camera
+from typing import List, Tuple
 import numpy as np
 import cv2
 
@@ -35,10 +36,10 @@ class Perception:
         :param camera_index: Index of the camera to load the model onto. If None, loads onto all cameras.
         """
         if camera_index is not None:
+            # use camera.switch or whatever it is to switch models.. don't need ML_Model import
             if 0 <= camera_index < len(self.camera_list):
                 # Load model onto a specific camera
-                model = ML_Model(model_path, "tensorrt")
-                self.camera_list[camera_index].load_model_object(model)
+                self.camera_list[camera_index].load_model(model_path)
                 self.model_list.append((camera_index, model))
                 print(f"Model loaded onto camera {camera_index}")
             else:
@@ -46,31 +47,55 @@ class Perception:
         else:
             # Load model onto all cameras
             for i, camera in enumerate(self.camera_list):
-                model = ML_Model(model_path, "tensorrt")
-                camera.load_model_object(model)
+                camera.load_model(model_path)
                 self.model_list.append((i, model))
             print("Model loaded onto all cameras.")
 
-    def get_latest_frames(self):
+    def get_frames(self, camera_indices: np.ndarray = None) -> np.ndarray:
         """
-        Get the latest frames from all cameras.
-
-        :return: A list of the latest frames from each camera.
+        Get the latest frames from all cameras or from specific cameras if indices are provided.
+        
+        :param camera_indices: Optional numpy array of camera indices to retrieve frames from.
+        :return: A numpy array of the latest frames from the specified cameras, or all cameras if no indices are provided.
         """
         frames = []
-        for camera in self.camera_list:
-            frame = camera.get_latest_frame(undistort=True, with_cuda=True)
-            if frame:
-                frames.append(frame.frame)
-        return frames
+        
+        if camera_indices is None:  # Get frames from all cameras
+            for camera in self.camera_list:
+                frame = camera.get_latest_frame(undistort=True, with_cuda=True)
+                if frame:
+                    frames.append(frame.frame)
+        else:  # Get frames from specific cameras
+            for i in camera_indices:
+                if 0 <= i < len(self.camera_list):  # Check if the index is valid
+                    frame = self.camera_list[i].get_latest_frame(undistort=True, with_cuda=True)
+                    if frame:
+                        frames.append(frame.frame)
+                else:
+                    print(f"Error: Camera index {i} is out of range.")
+        
+        return np.array(frames)  # Convert the list of frames to a numpy array
 
-    def start_stream(self):
+    
+    def start_stream(self, camera_indices: np.ndarray = None):
         """
-        Start streaming from all cameras.
+        Start streaming from all cameras or from specific cameras if indices are provided.
+        
+        :param camera_indices: Optional numpy array of camera indices to start streaming from.
         """
-        self.is_streaming = True
-        for camera in self.camera_list:
-            camera.start_stream()
+        if camera_indices is None:  # Start streaming from all cameras
+            self.is_streaming = True
+            for camera in self.camera_list:
+                camera.start_stream()
+            print("Started streaming from all cameras.")
+        else:  # Start streaming from specific cameras
+            for i in camera_indices:
+                if 0 <= i < len(self.camera_list):
+                    self.camera_list[i].start_stream()
+                    print(f"Started streaming for camera {i}.")
+                else:
+                    print(f"Error: Camera index {i} is out of range.")
+
 
     def stop_stream(self):
         """
@@ -91,8 +116,33 @@ class Perception:
                 frame = camera.draw_model_results(frame.frame)
                 frames_with_results.append(frame)
         return frames_with_results
+    
+    def activate_cameras(self, active_indices: List[int]):
+        """
+        Activate or deactivate specific cameras based on the indices provided.
+        :param active_indices: A list of camera indices to activate.
+        """
+        for i, camera in enumerate(self.camera_list):
+            if i in active_indices:
+                camera.start()
+                print(f"Camera {i} activated.")
+            else:
+                camera.stop()
+                print(f"Camera {i} deactivated.")
 
-    def stitch_frames(self, frames: list, x_distance: float, y_angle: float, fov_overlap: float) -> np.ndarray:
+    def get_model_results(self):
+        """
+        Get model results from all active cameras.
+        :return: A list of tuples with (camera_index, model_result).
+        """
+        results = []
+        for i, camera in enumerate(self.camera_list):
+            if camera.is_active():  # Assuming a method to check if camera is active
+                result = camera.get_model_result()
+                results.append((i, result))
+        return results
+
+    def stitch_frames(self, frames: np.ndarray, x_distance: float, y_angle: float, fov_overlap: float) -> np.ndarray:
         """
         Stitches the frames of the three cameras together into one panoramic frame
         NOTE: this is implemented currently to attempt to take advantage of the fixed position of the cameras.
@@ -139,3 +189,11 @@ class Perception:
         panorama[:, canvas_width-width:] = warped_right
 
         return panorama
+
+def __del__(self):
+        """
+        Clean up resources when the Perception object is deleted.
+        """
+        if self.is_streaming:
+            self.stop_stream()
+        print("Perception object is being deleted and streams are stopped.")
