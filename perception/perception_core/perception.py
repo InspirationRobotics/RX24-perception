@@ -1,7 +1,8 @@
 import cv2
-
+import time
 from threading import Thread, Lock
 
+from comms_core import Logger
 from typing import List, Tuple, Dict
 from camera_core import Camera, Image, Results
 
@@ -37,7 +38,7 @@ class CameraData:
         self.frame = image.frame
         self.results = results
 
-class Perception:
+class Perception(Logger):
 
     camera_addrs = {
         "port": [1,8],
@@ -46,6 +47,7 @@ class Perception:
         }
 
     def __init__(self):
+        super().__init__("Perception")
         self.active_cameras : Dict[str, Camera] = {}
         self.active_writers : Dict[str, cv2.VideoWriter] = {}
 
@@ -75,8 +77,8 @@ class Perception:
     def __del__(self):
         self.active = False
         self.perception_thread.join(2)
-        for camera in self.active_cameras.values():
-            camera.stop()
+        for camera in self.active_cameras.keys():
+            self.__stop_camera(camera)
 
     def __start_camera(self, camera_name : str):
         if camera_name in self.active_cameras:
@@ -101,7 +103,7 @@ class Perception:
             return
         camera = self.active_cameras[camera_name]
         fourcc = cv2.VideoWriter_fourcc(*'X264')
-        writer = cv2.VideoWriter(f'videos/{camera_name}.avi', fourcc, 20.0, camera.get_size())
+        writer = cv2.VideoWriter(f'videos/{camera_name}_{int(time.time())}.avi', fourcc, 20.0, camera.get_size())
         self.active_writers[camera_name] = writer
 
     def __stop_record_camera(self, camera_name : str):
@@ -165,3 +167,26 @@ class Perception:
                     if camera_name in self.active_writers:
                         writer = self.active_writers[camera_name]
                         writer.write(image.frame)
+            time.sleep(1/25)
+
+    def get_latest_data(self) -> Dict[str, CameraData]:
+        with self.change_lock:
+            return self.latest_data
+        
+    def command_perception(self, commands : Dict[str, list]):
+        for command, args in commands.items():
+            self.log(f"Received command: {command} with args: {args}")
+            if command == "start":
+                self._start_cameras(args)
+            elif command == "stop":
+                self._stop_cameras(args)
+            elif command == "record":
+                self._record_cameras(args)
+            elif command == "stop_record":
+                self._stop_record_cameras(args)
+            elif command == "load_model":
+                self._load_models(args)
+            elif command == "stop_model":
+                self._stop_models(args)
+            else:
+                self.log(f"Unknown command: {command}")
