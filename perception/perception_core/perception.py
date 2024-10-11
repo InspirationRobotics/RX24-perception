@@ -59,7 +59,7 @@ class Perception(Logger):
         self.perception_thread.start()
 
     def __handle_all(func):
-        def wrapper(self : Perception, camera_names : list):
+        def wrapper(self, camera_names : list):
             with self.change_lock:
                 if camera_names is None:
                     return
