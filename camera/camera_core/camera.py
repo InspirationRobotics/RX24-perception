@@ -64,6 +64,8 @@ class Camera:
     
     def _load_calibration(self, camera_type : str):
         pre_path = Path(__file__).parent.absolute() / "config"
+        if not (pre_path / camera_type).exists():
+            camera_type = "port"
         dist_calibration_path = pre_path / Path(f'{camera_type}/camera_distortion_matrix.txt')
         int_calibration_path = pre_path / Path(f'{camera_type}/camera_intrinsic_matrix.txt')
         self.undistort = Undistort(int_calibration_path, dist_calibration_path, self.resolution)
@@ -123,12 +125,14 @@ class Camera:
             self.model_thread.join()
         except:
             return
+        self.results = []
         self._info("Model thread stopped")
 
     def start_stream(self):
         if self.stream:
             self._error("Stream already started")
             return
+        self.warmup()
         self.stream = True
         self.camera_thread = Thread(target=self._camera_background_thread)
         self.camera_thread.start()

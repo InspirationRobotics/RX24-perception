@@ -1,141 +1,167 @@
-from camera_core import Camera
-import numpy as np
 import cv2
 
+from threading import Thread, Lock
+
+from typing import List, Tuple, Dict
+from camera_core import Camera, Image, Results
+
+'''
+This class will be imported by the mission handler.
+The perception class will be responsible for handling the camera feeds and processing them.
+
+It should have the capability to: (for all cameras or individual cameras)
+- Start and stop the cameras
+- Get the latest frame
+- Record the camera feed
+- Load a model and run inference on the camera feed
+- Return the inference results (along with the camera it came from)
+
+- There should be a single function which will parse the relevant commands from the mission handler and execute the appropriate functions.
+     - It will input a dictionary with the following commands:
+        - "start" : [camera_name]
+        - "stop" : [camera_name]
+        - "record" : [camera_name]
+        - "stop_record" : [camera_name]
+        - "load_model" : [(camera_name, model_path)]
+        - "stop_model" : [camera_name]
+     - A camera_name of "all" will apply the command to all cameras.
+
+ - There will also be a dictionary of latest frames and inference results which will be updated by the perception class.
+ - The keys for the dictionary will be the camera names and will either have data or be None.
+ - There will be a function to get the above dictionary.
+'''
+
+class CameraData:
+
+    def __init__(self, image : Image, results : Results):
+        self.frame = image.frame
+        self.results = results
+
 class Perception:
-    def __init__(self, camera_addresses: List[Tuple[int, int]]):
-        """
-        Initialize the Perception Stack
-        :param camera_list: List containing the Camera Objects
-        :param camera_addresses: List containing tuples of camera addresses
-        :param model_list: List containing the relevant models
-        :param is_streaming: Boolean that indicates whether we are streaming 
-        """
-        self.camera_list = []
-        self.camera_addresses = camera_addresses
-        self.model_list = []
-        self.is_streaming = False
 
-    def init_cameras(self):
-        """
-        Initialize the Cameras
-        """
-        for addr in self.camera_addresses:
-            camera = Camera(bus_addr=addr, camera_type='port')
-            camera.warmup()
-            camera.start()
-            self.camera_list.append(camera)
-        print("Cameras initialized.")
+    camera_addrs = {
+        "port": [1,8],
+        "center": [1,9],
+        "right": [1,10]
+        }
 
-    def load_model(self, model_path: str, camera_index: int = None):
-        """
-        Load the model onto all cameras or a specific camera.
+    def __init__(self):
+        self.active_cameras : Dict[str, Camera] = {}
+        self.active_writers : Dict[str, cv2.VideoWriter] = {}
 
-        :param model_path: Path to the model.
-        :param camera_index: Index of the camera to load the model onto. If None, loads onto all cameras.
-        """
-        if camera_index is not None:
-            if 0 <= camera_index < len(self.camera_list):
-                # Load model onto a specific camera
-                model = ML_Model(model_path, "tensorrt")
-                self.camera_list[camera_index].load_model_object(model)
-                self.model_list.append((camera_index, model))
-                print(f"Model loaded onto camera {camera_index}")
-            else:
-                print(f"Error: Camera index {camera_index} is out of range.")
-        else:
-            # Load model onto all cameras
-            for i, camera in enumerate(self.camera_list):
-                model = ML_Model(model_path, "tensorrt")
-                camera.load_model_object(model)
-                self.model_list.append((i, model))
-            print("Model loaded onto all cameras.")
+        self.latest_data : Dict[str, CameraData] = {}
 
-    def get_latest_frames(self):
-        """
-        Get the latest frames from all cameras.
+        self.active = True
+        self.change_lock = Lock()
+        self.perception_thread = Thread(target=self.__perception_loop)
+        self.perception_thread.start()
 
-        :return: A list of the latest frames from each camera.
-        """
-        frames = []
-        for camera in self.camera_list:
-            frame = camera.get_latest_frame(undistort=True, with_cuda=True)
-            if frame:
-                frames.append(frame.frame)
-        return frames
+    def __handle_all(func):
+        def wrapper(self : Perception, camera_names : list):
+            with self.change_lock:
+                if camera_names is None:
+                    return
+                if isinstance(camera_names[0], tuple):
+                    # Means that the camera_names are in the form of (camera_name, model_path)
+                    if "all" == camera_names[0][0]:
+                        model_path = camera_names[0][1]
+                        camera_names = [(key, model_path) for key in self.camera_addrs.keys()]
+                else:
+                    if "all" in camera_names:
+                        camera_names = list(self.camera_addrs.keys())
+                return func(self, camera_names)
+        return wrapper
 
-    def start_stream(self):
-        """
-        Start streaming from all cameras.
-        """
-        self.is_streaming = True
-        for camera in self.camera_list:
-            camera.start_stream()
+    def __del__(self):
+        self.active = False
+        self.perception_thread.join(2)
+        for camera in self.active_cameras.values():
+            camera.stop()
 
-    def stop_stream(self):
-        """
-        Stop streaming from all cameras.
-        """
-        self.is_streaming = False
-        for camera in self.camera_list:
-            camera.stop_stream()
+    def __start_camera(self, camera_name : str):
+        if camera_name in self.active_cameras:
+            return
+        camera = Camera(bus_addr=self.camera_addrs[camera_name], camera_type=camera_name)
+        camera.start()
+        self.active_cameras[camera_name] = camera
 
-    def draw_model_results(self):
-        """
-        Draw model results on the frames.
-        """
-        frames_with_results = []
-        for camera in self.camera_list:
-            frame = camera.get_latest_frame()
-            if frame is not None:
-                frame = camera.draw_model_results(frame.frame)
-                frames_with_results.append(frame)
-        return frames_with_results
+    def __stop_camera(self, camera_name : str):
+        if camera_name not in self.active_cameras:
+            return
+        camera = self.active_cameras.pop(camera_name)
+        if camera_name in self.active_writers:
+            writer = self.active_writers.pop(camera_name)
+            writer.release()
+        camera.stop()
 
-    def stitch_frames(self, frames: list, x_distance: float, y_angle: float, fov_overlap: float) -> np.ndarray:
-        """
-        Stitches the frames of the three cameras together into one panoramic frame
-        NOTE: this is implemented currently to attempt to take advantage of the fixed position of the cameras.
-        NOTE: it currently does not use the x_distance value. If using the fixed distance does not work, we can also attempt to stitch by features
-        :param frames: list of the individual frames
-        :param x_distance: distance between the cameras in meters
-        :param y_angle: angle between the cameras in degrees
-        :param fov_overlap: percentage value of the overlap between two of the cameras
-        """
-        # TODO: this will take a lot of tweaking and maybe a full re-implemntation
-        if len(frames) != 3:
-            raise ValueError("Expected exactly 3 frames for stitching.")
+    def __record_camera(self, camera_name : str):
+        if camera_name not in self.active_cameras:
+            return
+        if camera_name in self.active_writers:
+            return
+        camera = self.active_cameras[camera_name]
+        fourcc = cv2.VideoWriter_fourcc(*'X264')
+        writer = cv2.VideoWriter(f'videos/{camera_name}.avi', fourcc, 20.0, camera.get_size())
+        self.active_writers[camera_name] = writer
 
-        # Calculate transformation based on the angle Y
-        angle_rad = np.radians(y_angle)
+    def __stop_record_camera(self, camera_name : str):
+        if camera_name not in self.active_cameras:
+            return
+        if camera_name not in self.active_writers:
+            return
+        writer = self.active_writers.pop(camera_name)
+        writer.release()
 
-        # Create homography for left camera (rotating by -Y degrees)
-        h_left = np.array([[np.cos(-angle_rad), -np.sin(-angle_rad), 0],
-                           [np.sin(-angle_rad),  np.cos(-angle_rad), 0],
-                           [0, 0, 1]])
+    def __load_model(self, camera_name : str, model_path : str):
+        if camera_name not in self.active_cameras:
+            return
+        camera = self.active_cameras[camera_name]
+        camera.switch_model(model_path)
+        camera.start_model()
 
-        # Create homography for right camera (rotating by +Y degrees)
-        h_right = np.array([[np.cos(angle_rad), -np.sin(angle_rad), 0],
-                            [np.sin(angle_rad),  np.cos(angle_rad), 0],
-                            [0, 0, 1]])
+    def __stop_model(self, camera_name : str):
+        if camera_name not in self.active_cameras:
+            return
+        camera = self.active_cameras[camera_name]
+        camera.stop_model()
 
-        # Warp the left and right images using the calculated homographies
-        height, width = frames[1].shape[:2]
-        warped_left = cv2.warpPerspective(frames[0], h_left, (width, height))
-        warped_right = cv2.warpPerspective(frames[2], h_right, (width, height))
+    @__handle_all
+    def _start_cameras(self, camera_names : list):
+        for camera_name in camera_names:
+            self.__start_camera(camera_name)
 
-        # Create an empty canvas for the final panoramic image
-        canvas_width = width * 3 - int(width * fov_overlap) * 2  # Adjust for overlap
-        panorama = np.zeros((height, canvas_width, 3), dtype=np.uint8)
+    @__handle_all
+    def _stop_cameras(self, camera_names : list):
+        for camera_name in camera_names:
+            self.__stop_camera(camera_name)
 
-        # Overlay the images without blending
-        # Place the left frame on the left part of the canvas
-        panorama[:, :width] = warped_left
+    @__handle_all
+    def _record_cameras(self, camera_names : list):
+        for camera_name in camera_names:
+            self.__record_camera(camera_name)
+    
+    @__handle_all
+    def _stop_record_cameras(self, camera_names : list):
+        for camera_name in camera_names:
+            self.__stop_record_camera(camera_name)
 
-        # Overlay the center frame in the middle
-        panorama[:, width - int(width * fov_overlap):width*2 - int(width * fov_overlap)] = frames[1]
+    @__handle_all
+    def _load_models(self, camera_model_pairs : List[Tuple[str, str]]):
+        for camera_name, model_path in camera_model_pairs:
+            self.__load_model(camera_name, model_path)
 
-        # Overlay the right frame on the right part of the canvas
-        panorama[:, canvas_width-width:] = warped_right
+    @__handle_all
+    def _stop_models(self, camera_names : list):
+        for camera_name in camera_names:
+            self.__stop_model(camera_name)
 
-        return panorama
+    def __perception_loop(self):
+        while self.active:
+            with self.change_lock:
+                for camera_name, camera in self.active_cameras.items():
+                    image = camera.get_latest_frame()
+                    results = camera.get_latest_model_results()
+                    self.latest_data[camera_name] = CameraData(image, results)
+                    if camera_name in self.active_writers:
+                        writer = self.active_writers[camera_name]
+                        writer.write(image.frame)
