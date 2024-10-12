@@ -35,8 +35,16 @@ It should have the capability to: (for all cameras or individual cameras)
 class CameraData:
 
     def __init__(self, image : Image, results : Results):
+        self.timestamp = time.time()
         self.frame = image.frame
         self.results = results
+
+    def __getattr__(self, attr): # Expire the data after 2 seconds
+        current_time = time.time()
+        if attr in ['frame', 'results'] and current_time - self.timestamp > 2:
+            return None
+        else:
+            return super().__getattr__(attr)
 
 class Perception(Logger):
 
