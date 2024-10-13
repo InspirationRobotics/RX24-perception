@@ -1,4 +1,5 @@
 import cv2
+import time
 from camera_core import Camera, Image
 
 camera_addrs = [
@@ -18,7 +19,7 @@ def init_cameras(addrs : list, record : bool = True):
         camera.warmup()
         camera.start()
         if record:
-            writer_list.append(cv2.VideoWriter(f'videos/2_{i}.avi', fourcc, 20.0, (1786,  953)))
+            writer_list.append(cv2.VideoWriter(f'videos/{i}_vid_{int(time.time())}.avi', fourcc, 20.0, (1786,  953)))
         else:
             writer_list.append(None)
     return camera_list, writer_list
@@ -45,4 +46,11 @@ def run(record = True):
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    run(False)
+    record = input("Record? (y/n)")
+    if record in ["y", "yes"]:
+        print("Recording all cameras...")
+        record = True
+    else:
+        print("Not recording...")
+        record = False
+    run(record)
