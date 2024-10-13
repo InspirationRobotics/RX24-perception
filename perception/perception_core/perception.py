@@ -36,7 +36,7 @@ class CameraData:
 
     def __init__(self, image : Image, results : Results):
         self.timestamp = time.time()
-        self.frame = image.frame
+        self.frame = image.frame if image is not None else None
         self.results = results
 
     def __getattr__(self, attr): # Expire the data after 2 seconds
@@ -49,8 +49,8 @@ class CameraData:
 class Perception(Logger):
 
     camera_addrs = {
-        "port": [1,8],
-        "center": [1,9],
+        "port": [1,11],
+        "center": [1,4],
         "right": [1,10]
         }
 
