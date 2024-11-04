@@ -49,9 +49,9 @@ class CameraData:
 class Perception(Logger):
 
     camera_addrs = {
-        "port": [1,11],
-        "center": [1,4],
-        "right": [1,10]
+        "port": [1,4],
+        "center": [1,10],
+        "starboard": [1,11]
         }
 
     def __init__(self):

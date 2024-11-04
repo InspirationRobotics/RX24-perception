@@ -3,9 +3,9 @@ import time
 from camera_core import Camera, Image
 
 camera_addrs = [
-    [1,11], # port
-    [1,4], # center
-    [1,10], # right
+    [1,11], # right
+    [1,10], # center
+    [1,4], # left
 ]
 
 def init_cameras(addrs : list, record : bool = True):
