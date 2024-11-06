@@ -7,7 +7,7 @@ from camera_core import Camera, Image
 
 # Create a camera object
 camera = Camera(bus_addr=[1,10], camera_type='port')
-camera.switch_model("stcA.pt")
+camera.switch_model("FTP.pt")
 
 camera.start()
 

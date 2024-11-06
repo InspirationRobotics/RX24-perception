@@ -5,3 +5,4 @@ lidar/dev/bags/
 *.avi
 *.jpg
 *.log
+*recordings*
