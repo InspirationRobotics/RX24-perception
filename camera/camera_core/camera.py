@@ -100,6 +100,14 @@ class Camera:
         if self.model is None:
             self.load_model(model_path, model_type, half_precision=half_precision)
             return
+        if not isinstance(model_path, Path):
+                model_path = Path(model_path)
+        if not model_path.exists():
+            pre_path = Path(__file__).parent.absolute() / "models"
+            model_path = pre_path / model_path
+            if not model_path.exists():
+                self._error("Model path does not exist")
+                return
         with self.model_lock:
             self.model.switch_model(model_path, model_type, half_precision=half_precision)
 

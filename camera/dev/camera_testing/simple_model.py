@@ -7,7 +7,7 @@ from camera_core import Camera, Image
 
 # Create a camera object
 camera = Camera(bus_addr=[1,10], camera_type='port')
-camera.switch_model("FTP.pt")
+camera.switch_model("FTPB.pt")
 
 camera.start()
 
@@ -24,7 +24,7 @@ while camera.stream:
         continue
  
     frame = frame.frame
-    frame = camera.draw_model_results(frame, confidence=0.75)
+    frame = camera.draw_model_results(frame, confidence=0.6)
     post_time = time.time() - pre_time
 
     # Write FPS on the top left corner
